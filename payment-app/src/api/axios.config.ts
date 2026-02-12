@@ -1,24 +1,36 @@
+import axios from "axios";
+import type {
+    AxiosInstance,
+    AxiosError,
+    InternalAxiosRequestConfig,
+} from "axios";
 
-import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import toast from 'react-hot-toast';
+const API_BASE_URL =
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-
+/**
+ * Create axios instance with default configuration
+ */
 const axiosInstance: AxiosInstance = axios.create({
     baseURL: API_BASE_URL,
     timeout: 30000,
     headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
     },
 });
 
-// Request interceptor
+/**
+ * Request interceptor
+ * Adds JWT token to every request
+ */
 axiosInstance.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
-        const token = localStorage.getItem('access_token');
+        const token = localStorage.getItem("accessToken");
+
         if (token && config.headers) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+
         return config;
     },
     (error: AxiosError) => {
@@ -26,19 +38,20 @@ axiosInstance.interceptors.request.use(
     }
 );
 
-// Response interceptor
+/**
+ * Response interceptor
+ * Handles token expiration and errors
+ */
 axiosInstance.interceptors.response.use(
-    (response) => response,
-    async (error: AxiosError) => {
+    (response) => {
+        return response;
+    },
+    (error: AxiosError) => {
         if (error.response?.status === 401) {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('user');
-            window.location.href = '/login';
-            toast.error('Session expired. Please login again.');
+            localStorage.removeItem("accessToken");
+            localStorage.removeItem("user");
+            window.location.href = "/login";
         }
-
-        const errorMessage = (error.response?.data as any)?.message || 'An error occurred';
-        toast.error(errorMessage);
 
         return Promise.reject(error);
     }

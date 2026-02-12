@@ -20,7 +20,7 @@ import {
 import { Add as AddIcon } from '@mui/icons-material';
 import { paymentService } from '@/api/services/paymentService';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { PaymentStatus } from '@/types/payment.types';
+import type { PaymentStatus } from '@/types/payment.types';
 
 const PaymentList: React.FC = () => {
     const navigate = useNavigate();
@@ -46,7 +46,7 @@ const PaymentList: React.FC = () => {
         return colors[status] || 'default';
     };
 
-    const handleChangePage = (event: unknown, newPage: number) => {
+    const handleChangePage = (_: unknown, newPage: number) => {
         setPage(newPage);
     };
 
@@ -88,6 +88,7 @@ const PaymentList: React.FC = () => {
                             <TableCell>Date</TableCell>
                         </TableRow>
                     </TableHead>
+
                     <TableBody>
                         {data?.content?.map((payment: any) => (
                             <TableRow
@@ -97,13 +98,20 @@ const PaymentList: React.FC = () => {
                                 onClick={() => navigate(`/payments/${payment.id}`)}
                             >
                                 <TableCell>{payment.transactionReference}</TableCell>
+
                                 <TableCell>
-                                    <Typography variant="body2">{payment.customerName}</Typography>
+                                    <Typography variant="body2">
+                                        {payment.customerName}
+                                    </Typography>
                                     <Typography variant="caption" color="text.secondary">
                                         {payment.customerEmail}
                                     </Typography>
                                 </TableCell>
-                                <TableCell>{formatCurrency(payment.amount)}</TableCell>
+
+                                <TableCell>
+                                    {formatCurrency(payment.amount)}
+                                </TableCell>
+
                                 <TableCell>
                                     <Chip
                                         label={payment.status}
@@ -111,12 +119,17 @@ const PaymentList: React.FC = () => {
                                         size="small"
                                     />
                                 </TableCell>
+
                                 <TableCell>{payment.paymentMethod}</TableCell>
-                                <TableCell>{formatDate(payment.createdAt)}</TableCell>
+
+                                <TableCell>
+                                    {formatDate(payment.createdAt)}
+                                </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
                 </Table>
+
                 <TablePagination
                     component="div"
                     count={data?.totalElements || 0}

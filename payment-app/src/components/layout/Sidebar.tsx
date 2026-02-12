@@ -1,68 +1,58 @@
-// src/components/layout/Sidebar.tsx
-import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import {
     Drawer,
     List,
     ListItem,
+    ListItemButton,
     ListItemIcon,
     ListItemText,
-    ListItemButton,
-    Divider,
+    Toolbar,
 } from '@mui/material';
 import {
     Dashboard as DashboardIcon,
     Payment as PaymentIcon,
     People as PeopleIcon,
-    Analytics as AnalyticsIcon,
-    SmartToy as AIIcon,
+    BarChart as BarChartIcon,
 } from '@mui/icons-material';
-import { useAppSelector } from '@/store/hooks';
+import { useNavigate, useLocation } from 'react-router-dom';
 
-interface MenuItem {
-    text: string;
-    icon: React.ReactElement;
-    path: string;
+interface SidebarProps {
+    open: boolean;
 }
 
-const menuItems: MenuItem[] = [
+const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Payments', icon: <PaymentIcon />, path: '/payments' },
     { text: 'Customers', icon: <PeopleIcon />, path: '/customers' },
-    { text: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics' },
-    { text: 'AI Assistant', icon: <AIIcon />, path: '/ai-assistant' },
+    { text: 'Analytics', icon: <BarChartIcon />, path: '/analytics' },
 ];
 
-const Sidebar: React.FC = () => {
+const Sidebar = ({ open }: SidebarProps) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const sidebarOpen = useAppSelector((state) => state.ui.sidebarOpen);
 
     return (
         <Drawer
-            variant="permanent"
+            variant="persistent"
+            open={open}
             sx={{
-                width: sidebarOpen ? 240 : 70,
+                width: 240,
                 flexShrink: 0,
                 '& .MuiDrawer-paper': {
-                    width: sidebarOpen ? 240 : 70,
+                    width: 240,
                     boxSizing: 'border-box',
-                    mt: 8,
-                    transition: 'width 0.3s',
-                    overflowX: 'hidden',
                 },
             }}
         >
-            <Divider />
+            <Toolbar />
             <List>
                 {menuItems.map((item) => (
                     <ListItem key={item.text} disablePadding>
                         <ListItemButton
-                            selected={location.pathname.startsWith(item.path)}
+                            selected={location.pathname === item.path}
                             onClick={() => navigate(item.path)}
                         >
                             <ListItemIcon>{item.icon}</ListItemIcon>
-                            {sidebarOpen && <ListItemText primary={item.text} />}
+                            <ListItemText primary={item.text} />
                         </ListItemButton>
                     </ListItem>
                 ))}

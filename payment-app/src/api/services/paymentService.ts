@@ -1,6 +1,5 @@
-
 import axiosInstance from '../axios.config';
-import { Payment, PaymentRequest, PaymentListResponse, RefundRequest } from '@/types/payment.types';
+import type { Payment, PaymentRequest, PaymentListResponse, RefundRequest } from '@/types/payment.types';
 
 export const paymentService = {
     createPayment: async (data: PaymentRequest): Promise<Payment> => {

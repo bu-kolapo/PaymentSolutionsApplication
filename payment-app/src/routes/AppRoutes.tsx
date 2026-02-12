@@ -1,55 +1,58 @@
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useAppSelector } from "../store/hooks";
+import Login from "../pages/auth/Login";
+import Register from "../pages/auth/Register";
+import Dashboard from "../pages/dashboard/Dashboard";
+import PaymentList from "../pages/payments/PaymentList";
+import MainLayout from "../components/layout/MainLayout";
 
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import MainLayout from '@/components/layout/MainLayout';
-import PrivateRoute from './PrivateRoute';
-import PublicRoute from './PublicRoute';
+const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
+    const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+    return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+};
 
-// Auth Pages
-import Login from '@/pages/auth/Login';
-import Register from '@/pages/auth/Register';
+const PublicRoute = ({ children }: { children: React.ReactNode }) => {
+    const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+    return !isAuthenticated ? <>{children}</> : <Navigate to="/dashboard" />;
+};
 
-// Dashboard & Main Pages
-import Dashboard from '@/pages/dashboard/Dashboard';
-import PaymentList from '@/pages/payments/PaymentList';
-import PaymentDetails from '@/pages/payments/PaymentDetails';
-import CreatePayment from '@/pages/payments/CreatePayment';
-import CustomerList from '@/pages/customers/CustomerList';
-import CustomerDetails from '@/pages/customers/CustomerDetails';
-import CreateCustomer from '@/pages/customers/CreateCustomer';
-import Analytics from '@/pages/analytics/Overview';
-import AIChat from '@/pages/ai-assistant/AIChat';
-
-const AppRoutes: React.FC = () => {
+const AppRoutes = () => {
     return (
         <Routes>
-            {/* Public Routes */}
-            <Route element={<PublicRoute />}>
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+            {/* Public */}
+            <Route
+                path="/login"
+                element={
+                    <PublicRoute>
+                        <Login />
+                    </PublicRoute>
+                }
+            />
+
+            <Route
+                path="/register"
+                element={
+                    <PublicRoute>
+                        <Register />
+                    </PublicRoute>
+                }
+            />
+
+            {/* Private */}
+            <Route
+                path="/"
+                element={
+                    <PrivateRoute>
+                        <MainLayout />
+                    </PrivateRoute>
+                }
+            >
+                <Route index element={<Navigate to="/dashboard" />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="payments" element={<PaymentList />} />
             </Route>
 
-            {/* Protected Routes */}
-            <Route element={<PrivateRoute />}>
-                <Route element={<MainLayout />}>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-
-                    <Route path="/payments" element={<PaymentList />} />
-                    <Route path="/payments/new" element={<CreatePayment />} />
-                    <Route path="/payments/:id" element={<PaymentDetails />} />
-
-                    <Route path="/customers" element={<CustomerList />} />
-                    <Route path="/customers/new" element={<CreateCustomer />} />
-                    <Route path="/customers/:id" element={<CustomerDetails />} />
-
-                    <Route path="/analytics" element={<Analytics />} />
-                    <Route path="/ai-assistant" element={<AIChat />} />
-                </Route>
-            </Route>
-
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/" />} />
         </Routes>
     );
 };

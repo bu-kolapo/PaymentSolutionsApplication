@@ -1,124 +1,112 @@
-// src/pages/auth/Login.tsx
-import React from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import {
-    Container,
     Box,
-    Paper,
-    Typography,
+    Card,
+    CardContent,
     TextField,
     Button,
+    Typography,
     Link,
-    CircularProgress,
 } from '@mui/material';
+import { useAppDispatch } from '../../store/hooks';
+import { setCredentials } from '../../store/slices/authSlice';
+import { authService } from '../../api/services/authService';
 import toast from 'react-hot-toast';
-import { useAppDispatch } from '@/store/hooks';
-import { setCredentials } from '@/store/slices/authSlice';
-import { authService } from '@/api/services/authService';
 
-const loginSchema = z.object({
-    email: z.string().email('Invalid email address'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
-
-const Login: React.FC = () => {
-    const navigate = useNavigate();
+const Login = () => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
     const dispatch = useAppDispatch();
-    const [loading, setLoading] = React.useState(false);
+    const navigate = useNavigate();
 
-    const {
-        register,
-        handleSubmit,
-        formState: { errors },
-    } = useForm<LoginFormData>({
-        resolver: zodResolver(loginSchema),
-    });
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
 
-    const onSubmit = async (data: LoginFormData) => {
         try {
-            setLoading(true);
-            const response = await authService.login(data);
-            dispatch(setCredentials(response));
+            const response = await authService.login({ email, password });
+            dispatch(
+                setCredentials({
+                    user: {
+                        id: response.userId,
+                        email: response.email,
+                        role: response.role,
+                        merchantId: response.merchantId,
+                    },
+                    accessToken: response.accessToken,
+                })
+            );
             toast.success('Login successful!');
             navigate('/dashboard');
-        } catch (error) {
-            console.error('Login failed:', error);
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Login failed');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Container maxWidth="sm">
-            <Box
-                sx={{
-                    minHeight: '100vh',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                }}
-            >
-                <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
-                    <Typography variant="h4" align="center" gutterBottom>
+        <Box
+            sx={{
+                minHeight: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'background.default',
+            }}
+        >
+            <Card sx={{ maxWidth: 400, width: '100%', mx: 2 }}>
+                <CardContent sx={{ p: 4 }}>
+                    <Typography variant="h4" gutterBottom align="center">
                         PaymentSolution
                     </Typography>
-                    <Typography variant="h6" align="center" color="text.secondary" gutterBottom>
+                    <Typography variant="body2" color="text.secondary" align="center" mb={3}>
                         Sign in to your account
                     </Typography>
 
-                    <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ mt: 3 }}>
+                    <form onSubmit={handleSubmit}>
                         <TextField
                             fullWidth
                             label="Email"
                             type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
                             margin="normal"
-                            {...register('email')}
-                            error={!!errors.email}
-                            helperText={errors.email?.message}
+                            required
                         />
-
                         <TextField
                             fullWidth
                             label="Password"
                             type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
                             margin="normal"
-                            {...register('password')}
-                            error={!!errors.password}
-                            helperText={errors.password?.message}
+                            required
                         />
-
                         <Button
-                            type="submit"
                             fullWidth
                             variant="contained"
-                            size="large"
+                            type="submit"
                             disabled={loading}
                             sx={{ mt: 3, mb: 2 }}
                         >
-                            {loading ? <CircularProgress size={24} /> : 'Sign In'}
+                            {loading ? 'Signing in...' : 'Sign In'}
                         </Button>
+                    </form>
 
-                        <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="body2">
-                                Don't have an account?{' '}
-                                <Link
-                                    component="button"
-                                    variant="body2"
-                                    onClick={() => navigate('/register')}
-                                >
-                                    Sign Up
-                                </Link>
-                            </Typography>
-                        </Box>
+                    <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2">
+                            Don't have an account?{' '}
+                            <Link href="/register" underline="hover">
+                                Sign up
+                            </Link>
+                        </Typography>
                     </Box>
-                </Paper>
-            </Box>
-        </Container>
+                </CardContent>
+            </Card>
+        </Box>
     );
 };
 
