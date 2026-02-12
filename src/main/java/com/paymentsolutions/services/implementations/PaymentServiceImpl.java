@@ -43,56 +43,6 @@ public class PaymentServiceImpl implements PaymentService {
     private final INotificationService notificationService;
     private final IPaymentGateway paymentGateway;
 
-//    @Override
-//    public PaymentResponse processPayment(PaymentRequest request, UUID merchantId) throws PaymentException {
-//        log.info("Processing payment for merchant: {}, amount: {} {}",
-//                merchantId, request.getAmount(), request.getCurrency());
-//
-//        // Validate request
-//        validatePaymentRequest(request);
-//
-//        // Create payment entity
-//        Payment payment = createPaymentEntity(request, merchantId);
-//        payment = paymentRepository.save(payment);
-//
-//        try {
-//            // Fraud detection check
-//            if (fraudDetectionService.checkForFraud(payment)) {
-//                payment.setStatus(PaymentStatus.FRAUD_DETECTED);
-//                payment.setErrorMessage("Transaction flagged as potentially fraudulent");
-//                paymentRepository.save(payment);
-//                notificationService.sendFraudAlert(payment);
-//                throw new PaymentException("Fraud detected", "FRAUD_DETECTED");
-//            }
-//
-//            // Process with payment gateway
-//            payment.setStatus(PaymentStatus.PROCESSING);
-//            paymentRepository.save(payment);
-//
-//            String gatewayReference = stripeGateway.processPayment(
-//                    payment.getAmount(),
-//                    payment.getCurrency(),
-//                    request.getPaymentMethodToken()
-//            );
-//
-//            // Mark as completed
-//            payment.markAsCompleted(gatewayReference);
-//            payment = paymentRepository.save(payment);
-//
-//            // Post-processing
-//            notificationService.sendPaymentConfirmation(payment);
-//
-//            log.info("Payment processed successfully: {}", payment.getId());
-//            return mapToResponse(payment);
-//
-//        } catch (Exception e) {
-//            log.error("Payment processing failed: {}", e.getMessage(), e);
-//            payment.markAsFailed("GATEWAY_ERROR", e.getMessage());
-//            paymentRepository.save(payment);
-//            notificationService.sendPaymentFailureNotification(payment);
-//            throw new PaymentException("Payment processing failed: " + e.getMessage(), "PROCESSING_ERROR");
-//        }
-//    }
 
 
     @Override

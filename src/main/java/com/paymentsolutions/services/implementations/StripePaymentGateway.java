@@ -12,6 +12,7 @@ import com.stripe.param.RefundCreateParams;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -20,6 +21,7 @@ import java.math.BigDecimal;
  * Stripe implementation of IPaymentGateway.
  */
 @Component
+@Primary
 @Slf4j
 public class StripePaymentGateway implements IPaymentGateway {
 

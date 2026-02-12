@@ -28,7 +28,7 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     @Query("SELECT p FROM Payment p WHERE p.merchantId = :merchantId " +
             "AND p.transactionDate BETWEEN :startDate AND :endDate")
     List<Payment> findByMerchantIdAndDateRange(
-            @Param("merchantId") UUID merchantId,
+            @Param("merchantId") String merchantId,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
@@ -51,4 +51,20 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     Optional<Payment> findByTransactionReference(String transactionReference);
 
     boolean existsByGatewayReference(String gatewayReference);
+
+    // Count all payments for a merchant since a date
+    @Query("SELECT COUNT(p) FROM Payment p WHERE p.merchantId = :merchantId AND p.createdAt >= :since")
+    long countByMerchantIdSince(@Param("merchantId") UUID merchantId,
+                                @Param("since") LocalDateTime since);
+
+    // Count payments for a merchant with a specific status since a date
+    @Query("SELECT COUNT(p) FROM Payment p WHERE p.merchantId = :merchantId AND p.status = :status AND p.createdAt >= :since")
+    long countByMerchantIdAndStatusSince(@Param("merchantId") UUID merchantId,
+                                         @Param("status") String status,
+                                         @Param("since") LocalDateTime since);
+
+//    // Sum total revenue for a merchant since a date
+//    @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.merchantId = :merchantId AND p.createdAt >= :since")
+//    BigDecimal getTotalRevenueForMerchantSince(@Param("merchantId") UUID merchantId,
+//                                               @Param("since") LocalDateTime since);
 }

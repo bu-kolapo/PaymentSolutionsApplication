@@ -3,6 +3,7 @@ package com.paymentsolutions.controller;
 
 import com.paymentsolutions.dto.request.MerchantUpdateRequest;
 import com.paymentsolutions.dto.response.MerchantResponse;
+import com.paymentsolutions.exception.ResourceNotFoundException;
 import com.paymentsolutions.model.User;
 import com.paymentsolutions.services.IMerchantService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,7 +43,7 @@ public class MerchantController {
     @Operation(summary = "Get merchant profile",
             description = "Retrieve merchant account details")
     public ResponseEntity<MerchantResponse> getProfile(
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user) throws ResourceNotFoundException {
 
         log.info("Getting profile for merchant: {}", user.getMerchantId());
         MerchantResponse response = merchantService.getMerchant(user.getMerchantId());
@@ -61,7 +62,7 @@ public class MerchantController {
             description = "Update merchant account information")
     public ResponseEntity<MerchantResponse> updateProfile(
             @Valid @RequestBody MerchantUpdateRequest request,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user)throws ResourceNotFoundException {
 
         log.info("Updating profile for merchant: {}", user.getMerchantId());
         MerchantResponse response = merchantService.updateMerchant(
@@ -82,7 +83,7 @@ public class MerchantController {
             description = "Update merchant account status")
     public ResponseEntity<MerchantResponse> updateStatus(
             @RequestParam String status,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user) throws ResourceNotFoundException{
 
         log.info("Updating status for merchant: {} to: {}", user.getMerchantId(), status);
         MerchantResponse response = merchantService.updateMerchantStatus(
@@ -100,7 +101,7 @@ public class MerchantController {
     @Operation(summary = "Regenerate API key",
             description = "Generate a new API key for the merchant")
     public ResponseEntity<Map<String, String>> regenerateApiKey(
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user) throws ResourceNotFoundException{
 
         log.info("Regenerating API key for merchant: {}", user.getMerchantId());
         String newApiKey = merchantService.regenerateApiKey(user.getMerchantId());
@@ -123,7 +124,7 @@ public class MerchantController {
             description = "Set or update the webhook URL for payment notifications")
     public ResponseEntity<MerchantResponse> updateWebhookUrl(
             @RequestParam String webhookUrl,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user) throws ResourceNotFoundException{
 
         log.info("Updating webhook URL for merchant: {}", user.getMerchantId());
         MerchantResponse response = merchantService.updateWebhookUrl(
@@ -141,7 +142,7 @@ public class MerchantController {
     @Operation(summary = "Get merchant settings",
             description = "Retrieve merchant configuration settings")
     public ResponseEntity<Map<String, Object>> getSettings(
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user) throws ResourceNotFoundException{
 
         log.info("Getting settings for merchant: {}", user.getMerchantId());
 

@@ -4,6 +4,7 @@ package com.paymentsolutions.services;
 import com.paymentsolutions.dto.request.AIQueryRequest;
 import com.paymentsolutions.dto.response.AIResponse;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -35,7 +36,7 @@ public interface AIAgentService {
      * @param merchantId UUID of the merchant
      * @return List of AI recommendations
      */
-    java.util.List<String> getRecommendations(UUID merchantId);
+    List<String> getRecommendations(UUID merchantId);
 
     /**
      * Analyze transaction patterns

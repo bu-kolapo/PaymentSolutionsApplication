@@ -4,6 +4,7 @@ package com.paymentsolutions.services;
 
 import com.paymentsolutions.dto.request.MerchantUpdateRequest;
 import com.paymentsolutions.dto.response.MerchantResponse;
+import com.paymentsolutions.exception.ResourceNotFoundException;
 
 import java.util.UUID;
 
@@ -19,7 +20,7 @@ public interface IMerchantService {
      * @return MerchantResponse with merchant details
      * @throws ResourceNotFoundException if merchant not found
      */
-    MerchantResponse getMerchant(UUID merchantId);
+    MerchantResponse getMerchant(UUID merchantId)throws ResourceNotFoundException;
 
     /**
      * Update merchant information
@@ -28,7 +29,7 @@ public interface IMerchantService {
      * @param request Updated merchant details
      * @return Updated MerchantResponse
      */
-    MerchantResponse updateMerchant(UUID merchantId, MerchantUpdateRequest request);
+    MerchantResponse updateMerchant(UUID merchantId, MerchantUpdateRequest request)throws ResourceNotFoundException;
 
     /**
      * Update merchant status (ACTIVE, SUSPENDED, etc.)
@@ -37,7 +38,7 @@ public interface IMerchantService {
      * @param status New status
      * @return Updated MerchantResponse
      */
-    MerchantResponse updateMerchantStatus(UUID merchantId, String status);
+    MerchantResponse updateMerchantStatus(UUID merchantId, String status) throws ResourceNotFoundException;
 
     /**
      * Generate new API key for merchant
@@ -45,7 +46,7 @@ public interface IMerchantService {
      * @param merchantId UUID of the merchant
      * @return New API key
      */
-    String regenerateApiKey(UUID merchantId);
+    String regenerateApiKey(UUID merchantId)throws ResourceNotFoundException;
 
     /**
      * Update webhook URL for merchant
@@ -54,5 +55,5 @@ public interface IMerchantService {
      * @param webhookUrl New webhook URL
      * @return Updated MerchantResponse
      */
-    MerchantResponse updateWebhookUrl(UUID merchantId, String webhookUrl);
+    MerchantResponse updateWebhookUrl(UUID merchantId, String webhookUrl)throws ResourceNotFoundException;
 }
