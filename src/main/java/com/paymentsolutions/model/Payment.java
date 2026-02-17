@@ -86,6 +86,8 @@ public class Payment {
 
     @Column(name = "user_agent", length = 500)
     private String userAgent;
+    @Column(name = "idempotency_key", unique = true, length = 200)
+    private String idempotencyKey;
 
     // Business methods
     public boolean isCompleted() {

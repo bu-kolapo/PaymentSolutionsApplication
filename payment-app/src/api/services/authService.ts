@@ -1,4 +1,7 @@
 
+// 3. src/api/services/authService.ts
+//    Calls your AuthController endpoints
+// =====================================================
 import axiosInstance from '../axios.config';
 import type { AuthResponse, LoginRequest, RegisterRequest } from '../types/auth.types';
 

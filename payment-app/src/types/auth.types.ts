@@ -31,5 +31,13 @@ export interface RegisterRequest {
     lastName: string;
     phone?: string;
     businessType?: string;
-    taxId?: string;
+}
+export interface AuthResponse {
+    accessToken: string;
+    tokenType: string;
+    expiresIn: number;
+    userId: string;
+    email: string;
+    role: string;
+    merchantId: string;
 }

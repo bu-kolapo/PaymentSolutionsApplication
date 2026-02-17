@@ -13,20 +13,25 @@ import com.paymentsolutions.services.IFraudDetectionService;
 import com.paymentsolutions.services.INotificationService;
 import com.paymentsolutions.services.IPaymentGateway;
 import com.paymentsolutions.services.PaymentService;
+import com.stripe.Stripe;
+import com.stripe.exception.StripeException;
+import com.stripe.model.PaymentIntent;
+import com.stripe.net.RequestOptions;
+import com.stripe.param.PaymentIntentCreateParams;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 
 /**
  * Implementation of IPaymentService.
@@ -38,51 +43,97 @@ import java.util.UUID;
 @Transactional
 public class PaymentServiceImpl implements PaymentService {
 
+   @Value("${stripe.api-key}")
+    private String stripeApiKey;
+
     private final PaymentRepository paymentRepository;
     private final IFraudDetectionService fraudDetectionService;
     private final INotificationService notificationService;
     private final IPaymentGateway paymentGateway;
 
 
-
     @Override
-    public PaymentResponse processPayment(PaymentRequest request, UUID merchantId) throws PaymentException{
-        log.info("Processing payment for merchant: {}, amount: {} {}",
-                merchantId, request.getAmount(), request.getCurrency());
+    public PaymentResponse processPayment(PaymentRequest request, UUID merchantId) {
+        log.info("Processing payment for merchant: {}", merchantId);
 
-        // Create and save payment entity
-        Payment payment = createPaymentEntity(request, merchantId);
+        Stripe.apiKey = stripeApiKey;
+
+        // ✅ Step 1: Generate idempotency key FIRST (before using it)
+        String idempotencyKey = merchantId + "_"
+                + request.getCustomerId() + "_"
+                + request.getAmount() + "_"
+                + request.getCurrency();
+
+        // ✅ Step 2: Check for duplicate payment — return existing if found
+        Optional<Payment> existing = paymentRepository.findByIdempotencyKey(idempotencyKey);
+        if (existing.isPresent()) {
+            log.warn("Duplicate payment detected, returning existing: {}", existing.get().getId());
+            return mapToResponse(existing.get());
+        }
+
+        // ✅ Step 3: Save payment as PENDING
+        Payment payment = Payment.builder()
+                .merchantId(merchantId)
+                .customerId(request.getCustomerId())
+                .amount(request.getAmount())
+                .currency(request.getCurrency())
+                .status(PaymentStatus.PENDING)
+                .paymentMethod(request.getPaymentMethod())
+                .description(request.getDescription())
+                .customerEmail(request.getCustomerEmail())
+                .customerName(request.getCustomerName())
+                .transactionReference("TXN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .idempotencyKey(idempotencyKey)   // ✅ now declared above, safe to use
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
         payment = paymentRepository.save(payment);
 
         try {
-            // Fraud detection
-            if (fraudDetectionService.checkForFraud(payment)) {
-                handleFraudDetection(payment);
-                throw new PaymentException("Fraud detected", "FRAUD_DETECTED");
-            }
-
-            // Process with gateway (using interface)
-            payment.setStatus(PaymentStatus.PROCESSING);
-            paymentRepository.save(payment);
-
-            String gatewayReference = paymentGateway.processPayment(
-                    payment.getAmount(),
-                    payment.getCurrency(),
-                    request.getPaymentMethodToken()
+            // ✅ Step 4: Convert amount to smallest currency unit (kobo/cents)
+            long amountInSmallestUnit = convertToSmallestUnit(
+                    request.getAmount().doubleValue(),
+                    request.getCurrency()
             );
 
-            // Mark as completed
-            payment.markAsCompleted(gatewayReference);
+            // ✅ Step 5: Build Stripe PaymentIntent params
+            PaymentIntentCreateParams createParams = PaymentIntentCreateParams.builder()
+                    .setAmount(amountInSmallestUnit)
+                    .setCurrency(request.getCurrency().toLowerCase())
+                    .setPaymentMethod(request.getPaymentMethodToken())
+                    .setConfirm(true)
+                    .setReturnUrl("http://localhost:4003/payments")
+                    .putMetadata("merchantId",    merchantId.toString())
+                    .putMetadata("customerId",    request.getCustomerId().toString())
+                    .putMetadata("customerEmail", request.getCustomerEmail())
+                    .build();
+
+            // ✅ Step 6: Build Stripe request options with idempotency key
+            RequestOptions requestOptions = RequestOptions.builder()
+                    .setIdempotencyKey(idempotencyKey)
+                    .build();
+
+            // ✅ Step 7: Call Stripe
+            PaymentIntent paymentIntent = PaymentIntent.create(createParams, requestOptions);
+
+            // ✅ Step 8: Update payment as COMPLETED
+            payment.setStatus(PaymentStatus.COMPLETED);
+            payment.setGatewayReference(paymentIntent.getId());
+            payment.setUpdatedAt(LocalDateTime.now());
             payment = paymentRepository.save(payment);
 
-            // Post-processing
-            notificationService.sendPaymentConfirmation(payment);
-
-            log.info("Payment processed successfully: {}", payment.getId());
+            log.info("Payment completed: {}", payment.getId());
             return mapToResponse(payment);
 
-        } catch (Exception e) {
-            handlePaymentFailure(payment, e);
+        } catch (StripeException e) {
+            log.error("Payment failed: {}, error: {}", payment.getId(), e.getMessage());
+
+            // ✅ Step 9: Mark as FAILED and save
+            payment.setStatus(PaymentStatus.FAILED);
+            payment.setUpdatedAt(LocalDateTime.now());
+            paymentRepository.save(payment);
+
             throw new PaymentException("Payment processing failed: " + e.getMessage());
         }
     }
@@ -333,6 +384,18 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         return payment;
+    }
+
+    // =====================================================
+    // Helper: Convert amount to smallest unit
+    // =====================================================
+    private long convertToSmallestUnit(double amount, String currency) {
+        // Zero-decimal currencies (no conversion needed)
+        if (currency.equalsIgnoreCase("JPY") || currency.equalsIgnoreCase("KRW")) {
+            return (long) amount;
+        }
+        // All others: multiply by 100 (USD→cents, NGN→kobo, EUR→cents)
+        return (long) (amount * 100);
     }
 
 }

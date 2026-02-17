@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * JWT Authentication Filter
@@ -36,9 +38,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserDetailsService userDetailsService;
 
-    /**
-     * Main filter method - called once per request
-     */
     @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
@@ -46,57 +45,57 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        // Extract Authorization header
         final String authHeader = request.getHeader("Authorization");
 
-        // Check if Authorization header is present and starts with "Bearer "
+        // Skip if no Bearer token
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            // No token present, continue without authentication
             filterChain.doFilter(request, response);
             return;
         }
 
         try {
-            // Extract JWT token (remove "Bearer " prefix)
             final String jwt = authHeader.substring(7);
-
-            // Extract username (email) from token
             final String userEmail = jwtTokenProvider.extractUsername(jwt);
 
-            // If email exists and user is not already authenticated
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-                // Load user details from database
                 User user = (User) userDetailsService.loadUserByUsername(userEmail);
 
-                // Validate token against user details
                 if (jwtTokenProvider.isTokenValid(jwt, user)) {
 
-                    // Create authentication token
+                    // ✅ Extract role from token and add ROLE_ prefix
+                    String role = jwtTokenProvider.extractClaim(jwt,
+                            claims -> claims.get("role", String.class));
+
+                    // ✅ Spring Security requires "ROLE_" prefix
+                    String authority = (role != null && !role.startsWith("ROLE_"))
+                            ? "ROLE_" + role
+                            : role;
+
+                    List<SimpleGrantedAuthority> authorities = List.of(
+                            new SimpleGrantedAuthority(authority)
+                    );
+
+                    log.debug("Authenticating user: {} with authority: {}", userEmail, authority);
+
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(
                                     user,
-                                    null,  // credentials (not needed after authentication)
-                                    user.getAuthorities()  // user's roles/permissions
+                                    null,
+                                    authorities   // ✅ use token authorities not user.getAuthorities()
                             );
 
-                    // Set additional authentication details
                     authToken.setDetails(
                             new WebAuthenticationDetailsSource().buildDetails(request)
                     );
 
-                    // Set authentication in security context
                     SecurityContextHolder.getContext().setAuthentication(authToken);
-
-                    log.debug("User authenticated: {}", userEmail);
                 }
             }
         } catch (Exception e) {
-            // Log error but don't stop the filter chain
             log.error("Cannot set user authentication: {}", e.getMessage());
         }
 
-        // Continue with the filter chain
         filterChain.doFilter(request, response);
     }
 }

@@ -20,6 +20,7 @@ import java.util.UUID;
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     Page<Payment> findByMerchantId(UUID merchantId, Pageable pageable);
+    Optional<Payment> findByIdempotencyKey(String idempotencyKey);
 
     Page<Payment> findByMerchantIdAndStatus(UUID merchantId, PaymentStatus status, Pageable pageable);
 

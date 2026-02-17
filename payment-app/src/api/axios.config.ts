@@ -1,58 +1,36 @@
+// src/api/axios.config.ts
+
 import axios from "axios";
-import type {
-    AxiosInstance,
-    AxiosError,
-    InternalAxiosRequestConfig,
-} from "axios";
+import type { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from "axios";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-
-/**
- * Create axios instance with default configuration
- */
 const axiosInstance: AxiosInstance = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 30000,
+    baseURL: "",   // ✅ Empty — Vite proxy handles /api routing
+    timeout: 10000,
     headers: {
         "Content-Type": "application/json",
     },
 });
 
-/**
- * Request interceptor
- * Adds JWT token to every request
- */
+// Request interceptor — attach JWT token
 axiosInstance.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
-        const token = localStorage.getItem("accessToken");
-
+        const token = localStorage.getItem("access_token"); // ✅ matches authSlice key
         if (token && config.headers) {
             config.headers.Authorization = `Bearer ${token}`;
         }
-
         return config;
     },
-    (error: AxiosError) => {
-        return Promise.reject(error);
-    }
+    (error: AxiosError) => Promise.reject(error)
 );
 
-/**
- * Response interceptor
- * Handles token expiration and errors
- */
+// Response interceptor — handle 401
 axiosInstance.interceptors.response.use(
-    (response) => {
-        return response;
-    },
+    (response) => response,
     (error: AxiosError) => {
         if (error.response?.status === 401) {
-            localStorage.removeItem("accessToken");
-            localStorage.removeItem("user");
+            localStorage.removeItem("access_token"); // ✅ matches authSlice key
             window.location.href = "/login";
         }
-
         return Promise.reject(error);
     }
 );

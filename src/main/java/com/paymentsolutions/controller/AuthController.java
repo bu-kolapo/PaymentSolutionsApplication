@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 @Tag(name = "Authentication", description = "User authentication endpoints")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "http://localhost:4003")
 public class AuthController {
 
     private final IAuthenticationService authenticationService;

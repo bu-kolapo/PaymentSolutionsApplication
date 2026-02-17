@@ -31,7 +31,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Tag(name = "Payments", description = "Payment management endpoints")
 @SecurityRequirement(name = "bearerAuth")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "http://localhost:4003")
 public class PaymentController {
 
     private final PaymentService paymentService;
