@@ -8,7 +8,9 @@ import com.paymentsolutions.exception.ResourceNotFoundException;
 import com.paymentsolutions.exception.PaymentException;
 import com.paymentsolutions.model.Payment;
 import com.paymentsolutions.model.PaymentStatus;
+import com.paymentsolutions.model.Transaction;
 import com.paymentsolutions.repository.PaymentRepository;
+import com.paymentsolutions.repository.TransactionRepository;
 import com.paymentsolutions.services.IFraudDetectionService;
 import com.paymentsolutions.services.INotificationService;
 import com.paymentsolutions.services.IPaymentGateway;
@@ -47,7 +49,7 @@ public class PaymentServiceImpl implements PaymentService {
     private String stripeApiKey;
 
     private final PaymentRepository paymentRepository;
-    private final IFraudDetectionService fraudDetectionService;
+    private final TransactionRepository transactionRepository;
     private final INotificationService notificationService;
     private final IPaymentGateway paymentGateway;
 
@@ -89,6 +91,8 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
 
         payment = paymentRepository.save(payment);
+        // ✅ Create transaction: PAYMENT_CREATED
+        createTransaction(payment, "PAYMENT_CREATED", "PENDING", null, "PENDING", "SYSTEM");
 
         try {
             // ✅ Step 4: Convert amount to smallest currency unit (kobo/cents)
@@ -122,6 +126,9 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setGatewayReference(paymentIntent.getId());
             payment.setUpdatedAt(LocalDateTime.now());
             payment = paymentRepository.save(payment);
+            // ✅ Create transaction: PAYMENT_COMPLETED
+            createTransaction(payment, "PAYMENT_COMPLETED", "SUCCESS", "PENDING", "COMPLETED", "SYSTEM");
+
 
             log.info("Payment completed: {}", payment.getId());
             return mapToResponse(payment);
@@ -133,6 +140,9 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setStatus(PaymentStatus.FAILED);
             payment.setUpdatedAt(LocalDateTime.now());
             paymentRepository.save(payment);
+            // ✅ Create transaction: PAYMENT_FAILED
+            createTransaction(payment, "PAYMENT_FAILED", "FAILED", "PENDING", "FAILED", "SYSTEM");
+
 
             throw new PaymentException("Payment processing failed: " + e.getMessage());
         }
@@ -167,45 +177,35 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    @CacheEvict(value = "payments", key = "#paymentId")
-    public PaymentResponse refundPayment(UUID paymentId, RefundRequest request, UUID merchantId)throws ResourceNotFoundException {
-        log.info("Processing refund for payment: {}", paymentId);
+    public PaymentResponse refundPayment(UUID paymentId, RefundRequest request, UUID merchantId) {
+        Stripe.apiKey = stripeApiKey;
 
-        Payment originalPayment = getPaymentEntity(paymentId, merchantId);
-        validateRefund(originalPayment);
-
-        BigDecimal refundAmount = request.getAmount() != null
-                ? request.getAmount()
-                : originalPayment.getAmount();
-
-        if (refundAmount.compareTo(originalPayment.getAmount()) > 0) {
-            throw new PaymentException("Refund amount exceeds original amount", "INVALID_AMOUNT");
-        }
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new PaymentException("Payment not found: " + paymentId));
 
         try {
-            // Process refund with gateway
-            String refundReference = paymentGateway.refundPayment(
-                    originalPayment.getGatewayReference(),
-                    refundAmount
+            com.stripe.model.Refund.create(
+                    com.stripe.param.RefundCreateParams.builder()
+                            .setPaymentIntent(payment.getGatewayReference())
+                            .build()
             );
 
-            // Create refund record
-            Payment refund = createRefundEntity(originalPayment, refundAmount, refundReference);
-            refund = paymentRepository.save(refund);
+            payment.setStatus(PaymentStatus.REFUNDED);
+            payment.setUpdatedAt(LocalDateTime.now());
+            payment = paymentRepository.save(payment);
 
-            // Update original payment status
-            updateOriginalPaymentStatus(originalPayment, refundAmount);
+            // ✅ Create transaction: REFUND_ISSUED
+            createTransaction(payment, "REFUND_ISSUED", "SUCCESS", "COMPLETED", "REFUNDED", "MERCHANT");
 
-            notificationService.sendRefundConfirmation(refund);
+            log.info("Payment refunded: {}", paymentId);
+            return mapToResponse(payment);
 
-            log.info("Refund processed successfully: {}", refund.getId());
-            return mapToResponse(refund);
-
-        } catch (Exception e) {
-            log.error("Refund processing failed: {}", e.getMessage(), e);
-            throw new PaymentException("Refund processing failed: " + e.getMessage(), "REFUND_ERROR");
+        } catch (StripeException e) {
+            log.error("Refund failed: {}", e.getMessage());
+            throw new PaymentException("Refund failed: " + e.getMessage());
         }
     }
+
 
     @Override
     public PaymentResponse cancelPayment(UUID paymentId, UUID merchantId)  throws  ResourceNotFoundException{
@@ -396,6 +396,38 @@ public class PaymentServiceImpl implements PaymentService {
         }
         // All others: multiply by 100 (USD→cents, NGN→kobo, EUR→cents)
         return (long) (amount * 100);
+    }
+    /**
+     * Create a transaction record for audit trail
+     */
+    private void createTransaction(
+            Payment payment,
+            String type,
+            String status,
+            String previousStatus,
+            String newStatus,
+            String initiatedBy) {
+
+        Transaction transaction = Transaction.builder()
+                .paymentId(payment.getId())
+                .merchantId(payment.getMerchantId())
+                .customerId(payment.getCustomerId())
+                .type(type)
+                .status(status)
+                .amount(payment.getAmount())
+                .currency(payment.getCurrency())
+                .paymentMethod(payment.getPaymentMethod())
+                .previousStatus(previousStatus)
+                .newStatus(newStatus)
+                .gatewayReference(payment.getGatewayReference())
+                .transactionReference("TXN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .description(payment.getDescription())
+                .initiatedBy(initiatedBy)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        transactionRepository.save(transaction);
+        log.info("Transaction created: {} for payment: {}", transaction.getId(), payment.getId());
     }
 
 }

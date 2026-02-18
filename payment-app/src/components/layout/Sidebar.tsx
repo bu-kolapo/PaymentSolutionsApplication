@@ -7,6 +7,7 @@ import {
     ListItemText,
     Toolbar,
 } from '@mui/material';
+import { Timeline } from '@mui/icons-material';
 import {
     Dashboard as DashboardIcon,
     Payment as PaymentIcon,
@@ -22,6 +23,7 @@ interface SidebarProps {
 const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Payments', icon: <PaymentIcon />, path: '/payments' },
+    { text: 'Transactions', icon: <Timeline /> ,path: '/transactions' },
     { text: 'Customers', icon: <PeopleIcon />, path: '/customers' },
     { text: 'Analytics', icon: <BarChartIcon />, path: '/analytics' },
 ];
