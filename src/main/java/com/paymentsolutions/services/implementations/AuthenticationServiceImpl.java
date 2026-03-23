@@ -1,14 +1,14 @@
 package com.paymentsolutions.services.implementations;
 
 
-import com.paymentsolutions.dto.request.ChangePasswordRequest;
 import com.paymentsolutions.dto.request.LoginRequest;
 import com.paymentsolutions.dto.request.RegisterRequest;
 import com.paymentsolutions.dto.response.AuthResponse;
-import com.paymentsolutions.exception.ValidationException;
+import com.paymentsolutions.dto.response.UserResponse;
+import com.paymentsolutions.exception.PaymentException;
 import com.paymentsolutions.model.Merchant;
 import com.paymentsolutions.model.User;
-import com.paymentsolutions.model.UserRole;
+import com.paymentsolutions.model.Role;
 import com.paymentsolutions.repository.MerchantRepository;
 import com.paymentsolutions.repository.UserRepository;
 import com.paymentsolutions.security.JwtTokenProvider;
@@ -16,14 +16,12 @@ import com.paymentsolutions.services.IAuthenticationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
-import java.util.UUID;
 
 /**
  * Implementation of IAuthenticationService.
@@ -34,143 +32,113 @@ import java.util.UUID;
 @Transactional
 public class AuthenticationServiceImpl implements IAuthenticationService {
 
-    private final UserRepository userRepository;
-    private final MerchantRepository merchantRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
-    private final JwtTokenProvider jwtTokenProvider;
+        private final UserRepository userRepository;
+        private final MerchantRepository merchantRepository;
+        private final PasswordEncoder passwordEncoder;
+        private final JwtTokenProvider jwtTokenProvider;
+        private final AuthenticationManager authenticationManager;
 
-    @Override
-    public AuthResponse register(RegisterRequest request) {
-        log.info("Registering new merchant: {}", request.getEmail());
+        @Override
+        @Transactional
+        public AuthResponse register(RegisterRequest request) {
+            log.info("Registering new user: {}", request.getEmail());
 
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new ValidationException("Email already registered");
+            if (userRepository.existsByEmail(request.getEmail())) {
+                throw new PaymentException("Email already registered");
+            }
+
+            // Step 1: Create merchant first
+            Merchant merchant = Merchant.builder()
+                    .businessName(request.getFirstName() + " " + request.getLastName() + " Business")
+                    .email(request.getEmail())
+                    .status("ACTIVE")
+                    .build();
+
+            merchant = merchantRepository.save(merchant);
+            log.info("✅ Merchant created: {}", merchant.getId());
+
+            // Step 2: Create user with merchantId
+            User user = User.builder()
+                    .email(request.getEmail())
+                    .password(passwordEncoder.encode(request.getPassword()))
+                    .firstName(request.getFirstName())
+                    .lastName(request.getLastName())
+                    .merchantId(merchant.getId()) // ✅ Link to merchant
+                    .role(Role.MERCHANT)
+                    .enabled(true)
+                    .build();
+
+            user = userRepository.save(user);
+            log.info("✅ User created with merchantId: {}", user.getMerchantId());
+
+            // Generate token
+            String token = jwtTokenProvider.generateToken(user);
+
+            return AuthResponse.builder()
+                    .accessToken(token)
+                    .tokenType("Bearer")
+                    .expiresIn(86400L) // 24 hours
+                    .user(UserResponse.builder()
+                            .id(user.getId())
+                            .email(user.getEmail())
+                            .firstName(user.getFirstName())
+                            .lastName(user.getLastName())
+                            .merchantId(user.getMerchantId()) // ✅ Include in response
+                            .role(user.getRole().name())
+                            .build())
+                    .build();
         }
 
-        // Create merchant
-        Merchant merchant = Merchant.builder()
-                .businessName(request.getBusinessName())
-                .email(request.getEmail())
-                .phone(request.getPhone())
-                .businessType(request.getBusinessType())
-                .taxId(request.getTaxId())
-                .status("PENDING")
-                .apiKey(generateApiKey())
-                .build();
+        @Override
+        public AuthResponse login(LoginRequest request) {
+            log.info("Login attempt: {}", request.getEmail());
 
-        merchant = merchantRepository.save(merchant);
+            try {
+                Authentication authentication = authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(
+                                request.getEmail(),
+                                request.getPassword()
+                        )
+                );
 
-        // Create user
-        User user = User.builder()
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .firstName(request.getFirstName())
-                .lastName(request.getLastName())
-                .role(UserRole.MERCHANT)
-                .merchantId(merchant.getId())
-                .isActive(true)
-                .build();
+                User user = (User) authentication.getPrincipal();
 
-        user = userRepository.save(user);
+                // ✅ Check if user has merchantId, create if missing (for existing users)
+                if (user.getMerchantId() == null) {
+                    log.warn("User {} has no merchantId, creating merchant...", user.getEmail());
 
-        // Generate JWT token
-        String token = jwtTokenProvider.generateToken(user);
+                    Merchant merchant = Merchant.builder()
+                            .businessName(user.getFirstName() + " " + user.getLastName() + " Business")
+                            .email(user.getEmail())
+                            .status("ACTIVE")
+                            .build();
 
-        log.info("Merchant registered successfully: {}", merchant.getId());
+                    merchant = merchantRepository.save(merchant);
 
-        return buildAuthResponse(token, user);
-    }
+                    user.setMerchantId(merchant.getId());
+                    userRepository.save(user);
 
-    @Override
-    public AuthResponse login(LoginRequest request) {
-        log.info("User login attempt: {}", request.getEmail());
+                    log.info("✅ Merchant created for existing user: {}", merchant.getId());
+                }
 
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword()
-                )
-        );
+                String token = jwtTokenProvider.generateToken(user);
 
-        User user = (User) authentication.getPrincipal();
+                return AuthResponse.builder()
+                        .accessToken(token)
+                        .tokenType("Bearer")
+                        .expiresIn(86400L)
+                        .user(UserResponse.builder()
+                                .id(user.getId())
+                                .email(user.getEmail())
+                                .firstName(user.getFirstName())
+                                .lastName(user.getLastName())
+                                .merchantId(user.getMerchantId()) // ✅ Include in response
+                                .role(user.getRole().name())
+                                .build())
+                        .build();
 
-        // Update last login
-        user.setLastLogin(LocalDateTime.now());
-        userRepository.save(user);
-
-        // Generate JWT token
-        String token = jwtTokenProvider.generateToken(user);
-
-        log.info("User logged in successfully: {}", user.getId());
-
-        return buildAuthResponse(token, user);
-    }
-
-    @Override
-    public AuthResponse refreshToken(String refreshToken) {
-        // Implementation for refresh token
-        // This would validate the refresh token and generate new access token
-        throw new UnsupportedOperationException("Refresh token not yet implemented");
-    }
-
-    @Override
-    public void changePassword(UUID userId, ChangePasswordRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ValidationException("User not found"));
-
-        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
-            throw new ValidationException("Current password is incorrect");
+            } catch (BadCredentialsException e) {
+                throw new PaymentException("Invalid email or password");
+            }
         }
-
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(user);
-
-        log.info("Password changed for user: {}", userId);
     }
-
-    @Override
-    public void requestPasswordReset(String email) {
-        User user = userRepository.findByEmail(email).orElse(null);
-
-        if (user != null) {
-            // Generate reset token
-            String resetToken = UUID.randomUUID().toString();
-            // Store token (would typically use a separate table)
-            // Send email with reset link
-            log.info("Password reset requested for: {}", email);
-        }
-        // Always return success to prevent email enumeration
-    }
-
-    @Override
-    public void resetPassword(String token, String newPassword) {
-        // Validate reset token
-        // Update password
-        throw new UnsupportedOperationException("Password reset not yet implemented");
-    }
-
-    @Override
-    public void logout(UUID userId) {
-        // Implement token blacklisting if needed
-        log.info("User logged out: {}", userId);
-    }
-
-    // Helper methods
-
-    private String generateApiKey() {
-        return "sk_" + UUID.randomUUID().toString().replace("-", "");
-    }
-
-    private AuthResponse buildAuthResponse(String token, User user) {
-        return AuthResponse.builder()
-                .accessToken(token)
-                .tokenType("Bearer")
-                .expiresIn(jwtTokenProvider.getExpirationTime())
-                .userId(user.getId())
-                .email(user.getEmail())
-                .role(user.getRole().name())
-                .merchantId(user.getMerchantId())
-                .build();
-    }
-}

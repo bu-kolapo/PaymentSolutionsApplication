@@ -1,6 +1,6 @@
 package com.paymentsolutions.model;
 
-public enum UserRole {
+public enum Role {
     ADMIN,
     MERCHANT,
     CUSTOMER,

@@ -21,7 +21,7 @@ public interface IAnalyticsService {
      * @param days Number of days to analyze
      * @return AnalyticsResponse with aggregated metrics
      */
-    AnalyticsResponse getDashboardAnalytics(UUID merchantId, int days);
+    AnalyticsResponse getDashboardAnalytics(UUID merchantId,String paymentStatus, int days);
 
     /**
      * Get revenue data for chart visualization
@@ -32,7 +32,7 @@ public interface IAnalyticsService {
      * @return List of revenue data points
      */
     List<RevenueChartData> getRevenueChartData(
-            UUID merchantId, LocalDate startDate, LocalDate endDate);
+            UUID merchantId,LocalDate startDate, LocalDate endDate);
 
     /**
      * Get payment method distribution

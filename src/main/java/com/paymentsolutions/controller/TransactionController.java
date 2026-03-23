@@ -29,7 +29,7 @@ import java.util.UUID;
 @SecurityRequirement(name = "bearerAuth")
 @CrossOrigin(origins = {
         "http://localhost:3000",
-        "http://localhost:4001",
+        "http://localhost:4004",
         "http://localhost:4003",
         "http://localhost:5173"
 })

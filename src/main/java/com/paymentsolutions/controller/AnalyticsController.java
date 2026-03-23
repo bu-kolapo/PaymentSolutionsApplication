@@ -28,10 +28,10 @@ public class AnalyticsController {
     @GetMapping("/dashboard")
     @Operation(summary = "Get dashboard analytics")
     public ResponseEntity<AnalyticsResponse> getDashboardAnalytics(
-            @RequestParam(defaultValue = "30") int days,
+            @RequestParam(defaultValue = "30") int days,String paymentStatus,
             @AuthenticationPrincipal User user) {
         AnalyticsResponse response = analyticsService.getDashboardAnalytics(
-                user.getMerchantId(), days);
+                user.getMerchantId(),paymentStatus, days);
         return ResponseEntity.ok(response);
     }
 }

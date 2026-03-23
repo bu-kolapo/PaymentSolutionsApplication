@@ -30,44 +30,44 @@ public interface IAuthenticationService {
      */
     AuthResponse login(LoginRequest request);
 
-    /**
-     * Refresh an expired JWT token
-     *
-     * @param refreshToken The refresh token
-     * @return New AuthResponse with refreshed token
-     * @throws AuthenticationException if refresh token is invalid
-     */
-    AuthResponse refreshToken(String refreshToken) throws UnsupportedOperationException;
-
-    /**
-     * Change user password
-     *
-     * @param userId UUID of the user
-     * @param request Password change details
-     * @throws ValidationException if old password is incorrect
-     */
-    void changePassword(java.util.UUID userId, ChangePasswordRequest request);
-
-    /**
-     * Initiate password reset process
-     *
-     * @param email User's email address
-     */
-    void requestPasswordReset(String email);
-
-    /**
-     * Complete password reset with token
-     *
-     * @param token Reset token
-     * @param newPassword New password
-     * @throws ValidationException if token is invalid or expired
-     */
-    void resetPassword(String token, String newPassword);
-
-    /**
-     * Logout user (invalidate token)
-     *
-     * @param userId UUID of the user
-     */
-    void logout(java.util.UUID userId);
+//    /**
+//     * Refresh an expired JWT token
+//     *
+//     * @param refreshToken The refresh token
+//     * @return New AuthResponse with refreshed token
+//     * @throws AuthenticationException if refresh token is invalid
+//     */
+//    AuthResponse refreshToken(String refreshToken) throws UnsupportedOperationException;
+//
+//    /**
+//     * Change user password
+//     *
+//     * @param userId UUID of the user
+//     * @param request Password change details
+//     * @throws ValidationException if old password is incorrect
+//     */
+//    void changePassword(java.util.UUID userId, ChangePasswordRequest request);
+//
+//    /**
+//     * Initiate password reset process
+//     *
+//     * @param email User's email address
+//     */
+//    void requestPasswordReset(String email);
+//
+//    /**
+//     * Complete password reset with token
+//     *
+//     * @param token Reset token
+//     * @param newPassword New password
+//     * @throws ValidationException if token is invalid or expired
+//     */
+//    void resetPassword(String token, String newPassword);
+//
+//    /**
+//     * Logout user (invalidate token)
+//     *
+//     * @param userId UUID of the user
+//     */
+//    void logout(java.util.UUID userId);
 }

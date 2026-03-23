@@ -1,4 +1,12 @@
 import {
+    Dashboard as DashboardIcon,
+    Payment as PaymentIcon,
+    Receipt as ReceiptIcon,  // ← ADD THIS
+    AccountBalance as AccountBalanceIcon,
+    Settings as SettingsIcon,
+    // ... other imports
+} from '@mui/icons-material';
+import {
     Drawer,
     List,
     ListItem,
@@ -7,13 +15,7 @@ import {
     ListItemText,
     Toolbar,
 } from '@mui/material';
-import { Timeline } from '@mui/icons-material';
-import {
-    Dashboard as DashboardIcon,
-    Payment as PaymentIcon,
-    People as PeopleIcon,
-    BarChart as BarChartIcon,
-} from '@mui/icons-material';
+
 import { useNavigate, useLocation } from 'react-router-dom';
 
 interface SidebarProps {
@@ -22,10 +24,10 @@ interface SidebarProps {
 
 const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: 'Payments', icon: <PaymentIcon />, path: '/payments' },
-    { text: 'Transactions', icon: <Timeline /> ,path: '/transactions' },
-    { text: 'Customers', icon: <PeopleIcon />, path: '/customers' },
-    { text: 'Analytics', icon: <BarChartIcon />, path: '/analytics' },
+    { text: 'Payment Requests', icon: <PaymentIcon />, path: '/payments' },
+    { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
+    { text: 'Settlement Account',  icon: <SettingsIcon/> , path: '/account/setup' },
+    { text: 'Account Ledger', icon: <AccountBalanceIcon />, path: '/ledger' },
 ];
 
 const Sidebar = ({ open }: SidebarProps) => {

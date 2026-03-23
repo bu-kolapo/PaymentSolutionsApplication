@@ -2,24 +2,23 @@ package com.paymentsolutions.controller;
 
 
 import com.paymentsolutions.dto.request.PaymentRequest;
-import com.paymentsolutions.dto.request.RefundRequest;
+import com.paymentsolutions.dto.request.ProcessPaymentRequest;
 import com.paymentsolutions.dto.response.PaymentResponse;
-import com.paymentsolutions.exception.ResourceNotFoundException;
-import com.paymentsolutions.model.User;
-import com.paymentsolutions.services.PaymentService;
-import io.swagger.v3.oas.annotations.Operation;
+import com.paymentsolutions.services.IPaymentOrchestrator;
+import com.paymentsolutions.services.IPaymentRequestService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -29,68 +28,104 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Payments", description = "Payment management endpoints")
 @SecurityRequirement(name = "bearerAuth")
 @CrossOrigin(origins = "http://localhost:4003")
 public class PaymentController {
 
-    private final PaymentService paymentService;
+        private final IPaymentRequestService paymentRequestService;
+        private final IPaymentOrchestrator paymentOrchestrator;
 
-    @PostMapping
-    @Operation(summary = "Create new payment")
-    public ResponseEntity<PaymentResponse> createPayment(
-            @Valid @RequestBody PaymentRequest request,
-            @AuthenticationPrincipal User user) {
-        PaymentResponse response = paymentService.processPayment(request, user.getMerchantId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
+        /**
+         * MERCHANT ENDPOINT
+         * Merchant creates payment request
+         * Returns payment link for customer
+         */
+        @PostMapping("/requests")
+        public ResponseEntity<PaymentResponse> createPaymentRequest(
+                @Valid @RequestBody PaymentRequest request,
+                @RequestHeader("X-Merchant-Id") UUID merchantId // Get from JWT in real impl
+        ) {
+            log.info("🎫 Merchant {} creating payment request", merchantId);
 
-    @GetMapping("/{paymentId}")
-    @Operation(summary = "Get payment details")
-    public ResponseEntity<PaymentResponse> getPayment(
-            @PathVariable UUID paymentId,
-            @AuthenticationPrincipal User user)throws ResourceNotFoundException {
-        PaymentResponse response = paymentService.getPayment(paymentId, user.getMerchantId());
-        return ResponseEntity.ok(response);
-    }
+            PaymentResponse response = paymentRequestService.createPaymentRequest(request, merchantId);
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        }
+
+        /**
+         * PUBLIC ENDPOINT (No auth required)
+         * Customer pays for existing payment request
+         * This is called from checkout page when customer submits payment
+         */
+        @PostMapping("/{paymentReference}/pay")
+        public ResponseEntity<PaymentResponse> processCustomerPayment(
+                @PathVariable String paymentReference,
+                @Valid @RequestBody ProcessPaymentRequest request
+        ) {
+            log.info("💳 Customer paying for: {}", paymentReference);
+
+            PaymentResponse response = paymentOrchestrator.processCustomerPayment(paymentReference, request);
+
+            return ResponseEntity.ok(response);
+        }
+
+        /**
+         * PUBLIC ENDPOINT
+         * Get payment request details
+         * Used by checkout page to display payment info
+         */
+        @GetMapping("/requests/{paymentReference}")
+        public ResponseEntity<PaymentResponse> getPaymentRequest(
+                @PathVariable String paymentReference
+        ) {
+            PaymentResponse response = paymentRequestService.getPaymentRequest(paymentReference);
+            return ResponseEntity.ok(response);
+        }
+
+        /**
+         * MERCHANT ENDPOINT
+         * Cancel pending payment request
+         */
+        @PostMapping("/requests/{paymentReference}/cancel")
+        public ResponseEntity<PaymentResponse> cancelPaymentRequest(
+                @PathVariable String paymentReference,
+                @RequestHeader("X-Merchant-Id") UUID merchantId
+        ) {
+            PaymentResponse response = paymentRequestService.cancelPaymentRequest(paymentReference, merchantId);
+            return ResponseEntity.ok(response);
+        }
+
+        /**
+         * MERCHANT ENDPOINT
+         * Reverse/refund completed payment
+         */
+        @PostMapping("/{paymentId}/reverse")
+        public ResponseEntity<PaymentResponse> reversePayment(
+                @PathVariable UUID paymentId,
+                @RequestParam String reason,
+                @RequestHeader("X-Merchant-Id") UUID merchantId
+        ) {
+            log.info("🔄 Merchant {} reversing payment {}", merchantId, paymentId);
+
+            PaymentResponse response = paymentOrchestrator.reversePayment(paymentId, reason);
+
+            return ResponseEntity.ok(response);
+        }
 
     @GetMapping
-    @Operation(summary = "List all payments")
     public ResponseEntity<Page<PaymentResponse>> getPayments(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String status,
-            Pageable pageable,
-            @AuthenticationPrincipal User user) {
-        Page<PaymentResponse> payments = paymentService.getPayments(
-                user.getMerchantId(), status, pageable);
+            @RequestHeader("X-Merchant-Id") UUID merchantId
+    ) {
+        log.info("📋 GET /api/v1/payments - merchant: {}, status: {}", merchantId, status);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<PaymentResponse> payments = paymentRequestService.getPayments(merchantId, status, pageable);
+
         return ResponseEntity.ok(payments);
-    }
-
-    @PostMapping("/{paymentId}/refund")
-    @Operation(summary = "Refund payment")
-    public ResponseEntity<PaymentResponse> refundPayment(
-            @PathVariable UUID paymentId,
-            @Valid @RequestBody RefundRequest request,
-            @AuthenticationPrincipal User user) throws ResourceNotFoundException {
-        PaymentResponse response = paymentService.refundPayment(
-                paymentId, request, user.getMerchantId());
-        return ResponseEntity.ok(response);
-    }
-
-    @PostMapping("/{paymentId}/cancel")
-    @Operation(summary = "Cancel payment")
-    public ResponseEntity<PaymentResponse> cancelPayment(
-            @PathVariable UUID paymentId,
-            @AuthenticationPrincipal User user) throws ResourceNotFoundException {
-        PaymentResponse response = paymentService.cancelPayment(paymentId, user.getMerchantId());
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/statistics")
-    @Operation(summary = "Get payment statistics")
-    public ResponseEntity<Map<String, Object>> getStatistics(
-            @RequestParam(defaultValue = "30") int days,
-            @AuthenticationPrincipal User user) {
-        Map<String, Object> stats = paymentService.getPaymentStatistics(user.getMerchantId(), days);
-        return ResponseEntity.ok(stats);
     }
 }

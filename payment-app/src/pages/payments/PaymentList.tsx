@@ -21,15 +21,32 @@ const statusColor = (status: string): any => {
 
 const PaymentList = () => {
     const navigate = useNavigate();
-    const [page, setPage]               = useState(0);
+    const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
 
-    const { data, isLoading, isError } = useQuery({
+    // ✅ FIXED: Added merchantId header
+    const { data, isLoading, isError, error } = useQuery({
         queryKey: ['payments', page, rowsPerPage],
         queryFn: async () => {
+            // Get merchantId from localStorage
+            const userStr = localStorage.getItem('user');
+            const user = userStr ? JSON.parse(userStr) : null;
+            const merchantId = user?.merchantId || user?.id;
+
+            if (!merchantId) {
+                throw new Error('Merchant ID not found. Please login again.');
+            }
+
+            console.log('🔍 Fetching payments for merchant:', merchantId);
+
             const response = await axiosInstance.get('/api/v1/payments', {
-                params: { page, size: rowsPerPage }
+                params: { page, size: rowsPerPage },
+                headers: {
+                    'X-Merchant-Id': merchantId  // ✅ ADDED THIS
+                }
             });
+
+            console.log('✅ Payments loaded:', response.data);
             return response.data;
         },
     });
@@ -40,20 +57,21 @@ const PaymentList = () => {
         </Box>
     );
 
-    if (isError) return (
-        <Alert severity="error">Failed to load payments. Check your backend connection.</Alert>
-    );
+    if (isError) {
+        console.error('❌ Error loading payments:', error);
+        return (
+            <Alert severity="error">
+                Failed to load payments: {error?.message || 'Check your backend connection'}
+            </Alert>
+        );
+    }
 
     return (
         <Box>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h5" fontWeight="bold">Payments</Typography>
-                <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={() => navigate('/payments/new')}
-                >
-                    New Payment
+                <Typography variant="h5" fontWeight="bold">Payment Requests</Typography>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/payments/new')}>
+                    Create Payment Request
                 </Button>
             </Box>
 
@@ -74,7 +92,9 @@ const PaymentList = () => {
                             {(!data?.content || data.content.length === 0) && (
                                 <TableRow>
                                     <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
-                                        <Typography color="text.secondary">No payments yet</Typography>
+                                        <Typography color="text.secondary">
+                                            No payment requests yet. Create your first one!
+                                        </Typography>
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -86,7 +106,7 @@ const PaymentList = () => {
                                     onClick={() => navigate(`/payments/${payment.id}`)}
                                 >
                                     <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>
-                                        {payment.transactionReference}
+                                        {payment.paymentReference || payment.transactionReference}
                                     </TableCell>
                                     <TableCell>
                                         <Typography variant="body2" fontWeight="bold">
@@ -101,7 +121,7 @@ const PaymentList = () => {
                                             {payment.currency} {Number(payment.amount).toFixed(2)}
                                         </Typography>
                                     </TableCell>
-                                    <TableCell>{payment.paymentMethod}</TableCell>
+                                    <TableCell>{payment.channel || payment.paymentMethod || 'N/A'}</TableCell>
                                     <TableCell>
                                         <Chip
                                             label={payment.status}
@@ -123,10 +143,10 @@ const PaymentList = () => {
                     page={page}
                     rowsPerPage={rowsPerPage}
                     onPageChange={(_, newPage) => setPage(newPage)}
-                    onRowsPerPageChange={(e) => {
-                        setRowsPerPage(parseInt(e.target.value, 10));
-                        setPage(0);
-                    }}
+                    onRowsPerPage Change={(e) => {
+                    setRowsPerPage(parseInt(e.target.value, 10));
+                    setPage(0);
+                }}
                 />
             </Card>
         </Box>

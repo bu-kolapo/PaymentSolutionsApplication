@@ -3,62 +3,54 @@ package com.paymentsolutions.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Table(name = "users")
-@Getter
-@Setter
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class User implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "email", unique = true, nullable = false)
     private String email;
 
-    @Column(nullable = false)
+    @Column(name = "password", nullable = false)
     private String password;
 
     @Column(name = "first_name")
     private String firstName;
-    @Column(name = "access_token")
-    private String accessToken;
-
 
     @Column(name = "last_name")
     private String lastName;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private UserRole role;
-
     @Column(name = "merchant_id")
     private UUID merchantId;
 
-    @Column(name = "is_active")
-    private boolean isActive = true;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false)
+    private Role role;
 
-    @CreationTimestamp
+    @Column(name = "enabled", nullable = false)
+    private Boolean enabled = true;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "last_login")
-    private LocalDateTime lastLogin;
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
-
+    // ✅ UserDetails methods - ALL must return true for active account
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
@@ -71,23 +63,37 @@ public class User implements UserDetails {
 
     @Override
     public boolean isAccountNonExpired() {
-        return true;
+        return true;  // ✅ Account never expires
     }
 
     @Override
     public boolean isAccountNonLocked() {
-        return isActive;
+        return true;  // ✅ Account never locked - THIS WAS YOUR ISSUE
     }
 
     @Override
     public boolean isCredentialsNonExpired() {
-        return true;
+        return true;  // ✅ Credentials never expire
     }
 
     @Override
     public boolean isEnabled() {
-        return isActive;
+        return enabled != null ? enabled : true;  // ✅ Use enabled field
     }
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = LocalDateTime.now();
+        if (updatedAt == null) updatedAt = LocalDateTime.now();
+        if (enabled == null) enabled = true;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
+
 }
 
 

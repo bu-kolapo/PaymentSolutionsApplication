@@ -89,26 +89,51 @@ const Register = () => {
     return (
         <Box
             sx={{
-                minHeight: '100vh',
+                position: 'fixed',
+                inset: 0,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                bgcolor: '#f5f5f5',
+                backgroundColor: '#f5f5f5',
+                overflowY: 'auto',   // allows scroll if form taller than viewport
                 py: 4,
             }}
         >
-            <Card sx={{ maxWidth: 520, width: '100%', mx: 2, borderRadius: 3 }}>
+            <Card
+                sx={{
+                    width: '100%',
+                    maxWidth: 520,
+                    borderRadius: 3,
+                    boxShadow: 3,
+                    mx: 2,
+                }}
+            >
                 <CardContent sx={{ p: 4 }}>
 
-                    <Typography variant="h5" fontWeight="bold" align="center" gutterBottom>
+                    <Typography
+                        variant="h5"
+                        fontWeight="bold"
+                        align="center"
+                        gutterBottom
+                    >
                         Create Account
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" align="center" mb={3}>
+
+                    <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        align="center"
+                        mb={3}
+                    >
                         Start accepting payments today
                     </Typography>
 
                     {error && (
-                        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+                        <Alert
+                            severity="error"
+                            sx={{ mb: 2 }}
+                            onClose={() => setError('')}
+                        >
                             {error}
                         </Alert>
                     )}
@@ -125,7 +150,7 @@ const Register = () => {
                             disabled={loading}
                         />
 
-                        <Grid container spacing={2} sx={{ mt: 0 }}>
+                        <Grid container spacing={2}>
                             <Grid item xs={6}>
                                 <TextField
                                     fullWidth
@@ -137,6 +162,7 @@ const Register = () => {
                                     disabled={loading}
                                 />
                             </Grid>
+
                             <Grid item xs={6}>
                                 <TextField
                                     fullWidth
@@ -202,16 +228,32 @@ const Register = () => {
                             variant="contained"
                             type="submit"
                             disabled={loading}
-                            sx={{ mt: 3, mb: 2, py: 1.5, borderRadius: 2 }}
+                            sx={{
+                                mt: 3,
+                                mb: 2,
+                                py: 1.5,
+                                borderRadius: 2,
+                            }}
                         >
-                            {loading ? <CircularProgress size={24} color="inherit" /> : 'Create Account'}
+                            {loading ? (
+                                <CircularProgress size={24} color="inherit" />
+                            ) : (
+                                'Create Account'
+                            )}
                         </Button>
                     </form>
 
                     <Box sx={{ textAlign: 'center' }}>
                         <Typography variant="body2" color="text.secondary">
                             Already have an account?{' '}
-                            <Link to="/login" style={{ color: '#1976d2', textDecoration: 'none' }}>
+                            <Link
+                                to="/login"
+                                style={{
+                                    color: '#1976d2',
+                                    textDecoration: 'none',
+                                    fontWeight: 500,
+                                }}
+                            >
                                 Sign in
                             </Link>
                         </Typography>

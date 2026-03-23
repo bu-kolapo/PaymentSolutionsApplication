@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
  * Uses IAuthenticationService interface for loose coupling.
  */
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 @Tag(name = "Authentication", description = "User authentication endpoints")
@@ -24,6 +26,12 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final IAuthenticationService authenticationService;
+
+    @GetMapping("/test")
+    public ResponseEntity<String> test() {
+        log.info("✅✅✅ TEST ENDPOINT HIT! ✅✅✅");
+        return ResponseEntity.ok("✅ Auth endpoint is working!");
+    }
 
     @PostMapping("/register")
     @Operation(summary = "Register new merchant")
@@ -39,10 +47,10 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/refresh")
-    @Operation(summary = "Refresh access token")
-    public ResponseEntity<AuthResponse> refreshToken(@RequestParam String refreshToken) {
-        AuthResponse response = authenticationService.refreshToken(refreshToken);
-        return ResponseEntity.ok(response);
-    }
+//    @PostMapping("/refresh")
+//    @Operation(summary = "Refresh access token")
+//    public ResponseEntity<AuthResponse> refreshToken(@RequestParam String refreshToken) {
+//        AuthResponse response = authenticationService.refreshToken(refreshToken);
+//        return ResponseEntity.ok(response);
+//    }
 }

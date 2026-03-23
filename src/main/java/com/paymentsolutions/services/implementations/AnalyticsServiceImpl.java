@@ -29,7 +29,7 @@ public class AnalyticsServiceImpl implements IAnalyticsService {
     private final PaymentRepository paymentRepository;
 
     @Override
-    public AnalyticsResponse getDashboardAnalytics(UUID merchantId, int days) {
+    public AnalyticsResponse getDashboardAnalytics(UUID merchantId, String paymentStatus,int days) {
         log.info("Generating analytics for merchant: {}, period: {} days", merchantId, days);
 
         LocalDateTime startDate = LocalDateTime.now().minusDays(days);
@@ -39,10 +39,10 @@ public class AnalyticsServiceImpl implements IAnalyticsService {
                 .orElse(BigDecimal.ZERO);
 
         Long completedCount = paymentRepository
-                .countByMerchantIdAndStatusSince(merchantId, PaymentStatus.COMPLETED, startDate);
+                .countByMerchantIdAndStatusSince(merchantId, paymentStatus, startDate);
 
         Long failedCount = paymentRepository
-                .countByMerchantIdAndStatusSince(merchantId, PaymentStatus.FAILED, startDate);
+                .countByMerchantIdAndStatusSince(merchantId, paymentStatus, startDate);
 
         Long totalCount = completedCount + failedCount;
 

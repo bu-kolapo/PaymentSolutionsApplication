@@ -16,6 +16,7 @@ public class AuthResponse {
     private String accessToken;
 
     private String tokenType;
+    private UserResponse user;
 
     private Long expiresIn;  // ✅ Should be Long, not long or Integer
 

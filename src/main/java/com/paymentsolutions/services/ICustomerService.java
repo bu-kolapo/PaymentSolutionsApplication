@@ -21,7 +21,6 @@ public interface ICustomerService {
      * @param request Customer details
      * @param merchantId UUID of the merchant
      * @return CustomerResponse with created customer details
-     * @throws ValidationException if customer already exists
      */
     CustomerResponse createCustomer(CustomerRequest request, UUID merchantId);
 

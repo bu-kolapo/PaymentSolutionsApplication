@@ -1,8 +1,8 @@
 package com.paymentsolutions.controller;
 
-import com.paymentsolutions.dto.response.FraudAnalysisResponse;
+import com.paymentsolutions.dto.response.FraudCheckResponse;
 import com.paymentsolutions.model.User;
-import com.paymentsolutions.services.IFraudDetectionService;
+import com.paymentsolutions.services.IFraudService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,7 +29,7 @@ import java.util.UUID;
 @CrossOrigin(origins = "*")
 public class FraudDetectionController {
 
-    private final IFraudDetectionService fraudDetectionService;
+    private final IFraudService fraudDetectionService;
 
     /**
      * Get detailed fraud analysis for a payment
@@ -38,47 +38,47 @@ public class FraudDetectionController {
      * @param user Authenticated user
      * @return Detailed fraud analysis
      */
-    @GetMapping("/analyze/{paymentId}")
-    @Operation(summary = "Analyze payment for fraud",
-            description = "Get detailed fraud analysis including risk score and flags")
-    public ResponseEntity<FraudAnalysisResponse> analyzeFraud(
-            @PathVariable UUID paymentId,
-            @AuthenticationPrincipal User user) {
-
-        log.info("Fraud analysis requested for payment: {} by merchant: {}",
-                paymentId, user.getMerchantId());
-
-        FraudAnalysisResponse response = fraudDetectionService.analyzeFraud(paymentId);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Check customer velocity (transaction frequency)
-     *
-     * @param customerId Customer ID to check
-     * @param hours Time period in hours (default: 1)
-     * @param user Authenticated user
-     * @return Number of transactions in the period
-     */
-    @GetMapping("/velocity/{customerId}")
-    @Operation(summary = "Check customer velocity",
-            description = "Check transaction frequency for a customer")
-    public ResponseEntity<Map<String, Object>> checkVelocity(
-            @PathVariable UUID customerId,
-            @RequestParam(defaultValue = "1") int hours,
-            @AuthenticationPrincipal User user) {
-
-        log.info("Checking velocity for customer: {} over {} hours", customerId, hours);
-
-        long transactionCount = fraudDetectionService.checkCustomerVelocity(customerId, hours);
-
-        return ResponseEntity.ok(Map.of(
-                "customerId", customerId,
-                "period", hours + " hours",
-                "transactionCount", transactionCount,
-                "highRisk", transactionCount > 10
-        ));
-    }
+//    @GetMapping("/analyze/{paymentId}")
+//    @Operation(summary = "Analyze payment for fraud",
+//            description = "Get detailed fraud analysis including risk score and flags")
+//    public ResponseEntity<FraudCheckResponse> analyzeFraud(
+//            @PathVariable UUID paymentId,
+//            @AuthenticationPrincipal User user) {
+//
+//        log.info("Fraud analysis requested for payment: {} by merchant: {}",
+//                paymentId, user.getMerchantId());
+//
+//        FraudCheckResponse response = fraudDetectionService.analyzeFraud(paymentId);
+//        return ResponseEntity.ok(response);
+//    }
+//
+//    /**
+//     * Check customer velocity (transaction frequency)
+//     *
+//     * @param customerId Customer ID to check
+//     * @param hours Time period in hours (default: 1)
+//     * @param user Authenticated user
+//     * @return Number of transactions in the period
+//     */
+//    @GetMapping("/velocity/{customerId}")
+//    @Operation(summary = "Check customer velocity",
+//            description = "Check transaction frequency for a customer")
+//    public ResponseEntity<Map<String, Object>> checkVelocity(
+//            @PathVariable UUID customerId,
+//            @RequestParam(defaultValue = "1") int hours,
+//            @AuthenticationPrincipal User user) {
+//
+//        log.info("Checking velocity for customer: {} over {} hours", customerId, hours);
+//
+//        long transactionCount = fraudDetectionService.checkCustomerVelocity(customerId, hours);
+//
+//        return ResponseEntity.ok(Map.of(
+//                "customerId", customerId,
+//                "period", hours + " hours",
+//                "transactionCount", transactionCount,
+//                "highRisk", transactionCount > 10
+//        ));
+//    }
 
     /**
      * Update fraud detection rules
@@ -89,26 +89,26 @@ public class FraudDetectionController {
      * @param user Authenticated user
      * @return Success message
      */
-    @PutMapping("/rules/{ruleType}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Update fraud rule",
-            description = "Update fraud detection rule threshold (Admin only)")
-    public ResponseEntity<Map<String, String>> updateFraudRule(
-            @PathVariable String ruleType,
-            @RequestParam double threshold,
-            @AuthenticationPrincipal User user) {
-
-        log.info("Updating fraud rule: {} to threshold: {} by user: {}",
-                ruleType, threshold, user.getId());
-
-        fraudDetectionService.updateFraudRule(ruleType, threshold);
-
-        return ResponseEntity.ok(Map.of(
-                "message", "Fraud rule updated successfully",
-                "ruleType", ruleType,
-                "threshold", String.valueOf(threshold)
-        ));
-    }
+//    @PutMapping("/rules/{ruleType}")
+//    @PreAuthorize("hasRole('ADMIN')")
+//    @Operation(summary = "Update fraud rule",
+//            description = "Update fraud detection rule threshold (Admin only)")
+//    public ResponseEntity<Map<String, String>> updateFraudRule(
+//            @PathVariable String ruleType,
+//            @RequestParam double threshold,
+//            @AuthenticationPrincipal User user) {
+//
+//        log.info("Updating fraud rule: {} to threshold: {} by user: {}",
+//                ruleType, threshold, user.getId());
+//
+//        fraudDetectionService.updateFraudRule(ruleType, threshold);
+//
+//        return ResponseEntity.ok(Map.of(
+//                "message", "Fraud rule updated successfully",
+//                "ruleType", ruleType,
+//                "threshold", String.valueOf(threshold)
+//        ));
+//    }
 
     /**
      * Get fraud statistics for merchant
