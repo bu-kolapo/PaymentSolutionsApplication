@@ -29,7 +29,17 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     List<Payment> findByStatusAndRetryCountLessThan(String status, int maxRetries);
 
     long countBySourceAccountAndCreatedAtAfter(String sourceAccount, LocalDateTime after);
-
+    @Query("""
+    SELECT COALESCE(SUM(p.amount), 0)
+    FROM Payment p
+    WHERE p.merchantId = :merchantId
+      AND p.createdAt >= :since
+      AND p.status = 'SUCCESS'
+    """)
+    Optional<BigDecimal> getTotalRevenueForMerchantSince(
+            @Param("merchantId") UUID merchantId,
+            @Param("since") LocalDateTime since
+    );
     Page<Payment> findByMerchantIdAndStatus(UUID merchantId, PaymentStatus status, Pageable pageable);
     Optional<Payment> findByIdAndMerchantId(UUID id, UUID merchantId);
 
