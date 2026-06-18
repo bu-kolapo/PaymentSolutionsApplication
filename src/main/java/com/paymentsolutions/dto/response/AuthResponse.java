@@ -18,7 +18,7 @@ public class AuthResponse {
     private String tokenType;
     private UserResponse user;
 
-    private Long expiresIn;  // ✅ Should be Long, not long or Integer
+    private Long expiresIn;
 
     private UUID userId;
 

@@ -31,6 +31,7 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     long countBySourceAccountAndCreatedAtAfter(String sourceAccount, LocalDateTime after);
 
     Page<Payment> findByMerchantIdAndStatus(UUID merchantId, PaymentStatus status, Pageable pageable);
+    Optional<Payment> findByIdAndMerchantId(UUID id, UUID merchantId);
 
 
     @Query("SELECT p FROM Payment p WHERE p.status = 'SUCCESS' AND p.webhookSent = false")
@@ -53,11 +54,36 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     Page<Payment> findByMerchantId(UUID merchantId, Pageable pageable);
 
-    // ✅ Fixed: was a bare method signature Spring tried to parse as a derived query (and failed).
-    // Now backed by an explicit JPQL @Query so Spring doesn't touch the method name.
-    @Query("SELECT SUM(p.amount) FROM Payment p WHERE p.merchantId = :merchantId AND p.createdAt >= :since")
-    Optional<BigDecimal> getTotalRevenueForMerchantSince(@Param("merchantId") UUID merchantId,
-                                                         @Param("since") LocalDateTime since);
 
-    long countByCustomerIdAndCreatedAtAfter(UUID customerId, LocalDateTime after);
+
+
+    /**
+     * Get average transaction amount for a merchant in a period
+     * Useful for pattern analysis
+     */
+    @Query("""
+        SELECT COALESCE(AVG(p.amount), 0) FROM Payment p 
+        WHERE p.merchantId = :merchantId 
+        AND p.createdAt >= :since
+        AND p.status = 'COMPLETED'
+    """)
+    Optional<BigDecimal> getAverageTransactionAmountSince(
+            @Param("merchantId") UUID merchantId,
+            @Param("since") LocalDateTime since
+    );
+
+    /**
+     * Get transaction count by status for a period
+     * Useful for insights generation
+     */
+    @Query("""
+        SELECT COUNT(p) FROM Payment p 
+        WHERE p.merchantId = :merchantId 
+        AND p.createdAt >= :since
+        AND p.status IN ('COMPLETED', 'PENDING', 'FAILED')
+    """)
+    long countPaymentsByMerchantInPeriod(
+            @Param("merchantId") UUID merchantId,
+            @Param("since") LocalDateTime since
+    );
 }

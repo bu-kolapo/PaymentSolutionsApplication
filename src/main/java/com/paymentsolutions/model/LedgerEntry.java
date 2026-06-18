@@ -91,6 +91,7 @@ public class LedgerEntry {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+    private String reference;
 
     @PrePersist
     protected void onCreate() {

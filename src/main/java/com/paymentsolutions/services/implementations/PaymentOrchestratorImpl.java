@@ -5,13 +5,11 @@ import com.paymentsolutions.dto.response.FraudCheckResponse;
 import com.paymentsolutions.dto.response.PaymentGatewayResponse;
 import com.paymentsolutions.dto.response.PaymentResponse;
 import com.paymentsolutions.exception.PaymentException;
-import com.paymentsolutions.model.Account;
-import com.paymentsolutions.model.Payment;
-import com.paymentsolutions.model.PaymentEvent;
-import com.paymentsolutions.model.PaymentStatus;
+import com.paymentsolutions.model.*;
 import com.paymentsolutions.repository.AccountRepository;
 import com.paymentsolutions.repository.PaymentEventRepository;
 import com.paymentsolutions.repository.PaymentRepository;
+import com.paymentsolutions.repository.TransactionRepository;
 import com.paymentsolutions.services.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +27,8 @@ public class PaymentOrchestratorImpl implements IPaymentOrchestrator {
     private final PaymentRepository paymentRepository;
     private final PaymentEventRepository paymentEventRepository;
     private final AccountRepository accountRepository;
+
+    private  final TransactionRepository transactionRepository;
     private final IFraudService fraudService;
     private final IWebhookService webhookService;
     private final IPaymentGatewayService gatewayService;
@@ -60,6 +60,8 @@ public class PaymentOrchestratorImpl implements IPaymentOrchestrator {
 
         // Update with customer's payment method
         payment.setChannel(request.getPaymentMethod());
+        // Attach customer to payment (VERY IMPORTANT)
+        payment.setCustomerId(request.getCustomerId());
         payment.setStatus(PaymentStatus.PROCESSING);
         payment.setUpdatedAt(LocalDateTime.now());
         payment = paymentRepository.save(payment);
@@ -106,6 +108,28 @@ public class PaymentOrchestratorImpl implements IPaymentOrchestrator {
             // This is where merchant receives the money
             log.info("💰 Crediting merchant settlement account...");
 
+            Transaction transaction = transactionRepository.save(
+                    Transaction.builder()
+                            .paymentId(payment.getId())
+                            .amount(payment.getAmount())
+                            .customerId(payment.getCustomerId())
+                            .merchantId(payment.getMerchantId())
+                            .currency(payment.getCurrency())
+                            .status("SUCCESS")
+                            .type("SETTLEMENT")
+
+                            // ✅ KEEP your existing referenceId (if used elsewhere)
+                            .referenceId("TX-" + UUID.randomUUID())
+
+                            // 🔴 THIS IS THE CRITICAL FIX (matches DB column)
+                            .transactionReference("TX-" + UUID.randomUUID())
+
+                            .createdAt(LocalDateTime.now())
+                            .build()
+            );
+
+             log.info("🔥 Transaction created with ID: {}", transaction.getId());
+
             AccountResponse merchantAccount = ledgerService.getOrCreateAccount(
                     payment.getMerchantId(),
                     "MERCHANT",
@@ -122,7 +146,13 @@ public class PaymentOrchestratorImpl implements IPaymentOrchestrator {
             accountRepository.save(account);
 
             // Record in ledger
-            ledgerService.recordSettlement(payment.getId(), account.getId(), payment.getAmount(), payment.getCurrency());
+            ledgerService.recordSettlement(
+                    payment.getId(),
+                    transaction.getId(),   // ✅ THIS IS THE FIX
+                    account.getId(),
+                    payment.getAmount(),
+                    payment.getCurrency()
+            );
 
             logEvent(payment.getId(), "MERCHANT_CREDITED", "SUCCESS",
                     "Credited " + account.getAccountNumber());
@@ -130,6 +160,7 @@ public class PaymentOrchestratorImpl implements IPaymentOrchestrator {
             // STEP 5: Mark payment as completed
             payment.setStatus(PaymentStatus.COMPLETED);
             payment.setUpdatedAt(LocalDateTime.now());
+            payment.setCustomerId(request.getCustomerId());
             payment = paymentRepository.save(payment);
 
             logEvent(payment.getId(), "PAYMENT_COMPLETED", "SUCCESS", null);

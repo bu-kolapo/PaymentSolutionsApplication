@@ -1,16 +1,14 @@
-// src/pages/payments/PaymentDetail.tsx
-// REPLACE YOUR ENTIRE FILE WITH THIS
-
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     Box, Button, Card, CardContent, Chip, CircularProgress,
     Alert, Typography, Grid, Divider, Dialog, DialogTitle,
-    DialogContent, DialogActions, TextField,
+    DialogContent, DialogActions, TextField, IconButton,
 } from '@mui/material';
 import {
     ArrowBack, Receipt, Person, CreditCard,
-    CalendarToday, Tag, RefreshOutlined,
+    CalendarToday, Tag, RefreshOutlined, Link as LinkIcon,
+    ContentCopy,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import axiosInstance from '../../api/axios.config';
@@ -31,7 +29,7 @@ const statusColor = (status: string): any => {
 const InfoRow = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
     <Box display="flex" alignItems="flex-start" gap={2} py={1.5}>
         <Box sx={{ color: '#1976d2', mt: 0.3 }}>{icon}</Box>
-        <Box>
+        <Box flex={1}>
             <Typography variant="caption" color="text.secondary" display="block">
                 {label}
             </Typography>
@@ -44,28 +42,52 @@ const InfoRow = ({ icon, label, value }: { icon: React.ReactNode; label: string;
 
 // ── Main component ────────────────────────────────────────────
 const PaymentDetails = () => {
-    const { id }       = useParams<{ id: string }>();
-    const navigate     = useNavigate();
-    const queryClient  = useQueryClient();
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const queryClient = useQueryClient();
 
-    const [refundOpen,   setRefundOpen]   = useState(false);
+    const [refundOpen, setRefundOpen] = useState(false);
     const [refundReason, setRefundReason] = useState('');
+
+    // Get merchantId from localStorage
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    const merchantId = user?.merchantId || user?.id;
 
     // Fetch payment details
     const { data: payment, isLoading, isError } = useQuery({
         queryKey: ['payment', id],
         queryFn: async () => {
-            const res = await axiosInstance.get(`/api/v1/payments/${id}`);
+            if (!id || !merchantId) {
+                throw new Error('Missing payment ID or merchant ID');
+            }
+
+            console.log('🔍 Fetching payment details for:', id);
+
+            const res = await axiosInstance.get(`/api/v1/payments/${id}`, {
+                headers: {
+                    'X-Merchant-Id': merchantId,  // ✅ ADD HEADER
+                },
+            });
+
+            console.log('✅ Payment loaded:', res.data);
             return res.data;
         },
-        enabled: !!id,
+        enabled: !!id && !!merchantId,
     });
 
     // Refund mutation
     const refundMutation = useMutation({
-        mutationFn: () => axiosInstance.post(`/api/v1/payments/${id}/refund`, {
-            reason: refundReason,
-        }),
+        mutationFn: () =>
+            axiosInstance.post(
+                `/api/v1/payments/${id}/refund`,
+                { reason: refundReason },
+                {
+                    headers: {
+                        'X-Merchant-Id': merchantId,  // ✅ ADD HEADER
+                    },
+                }
+            ),
         onSuccess: () => {
             toast.success('Refund processed successfully!');
             queryClient.invalidateQueries({ queryKey: ['payment', id] });
@@ -78,21 +100,33 @@ const PaymentDetails = () => {
     });
 
     // ── Loading state ─────────────────────────────────────────
-    if (isLoading) return (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-            <CircularProgress />
-        </Box>
-    );
+    if (isLoading) {
+        return (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+                <CircularProgress />
+            </Box>
+        );
+    }
 
     // ── Error state ───────────────────────────────────────────
-    if (isError || !payment) return (
-        <Box>
-            <Button startIcon={<ArrowBack />} onClick={() => navigate('/payments')} sx={{ mb: 2 }}>
-                Back to Payments
-            </Button>
-            <Alert severity="error">Payment not found or failed to load.</Alert>
-        </Box>
-    );
+    if (isError || !payment) {
+        return (
+            <Box>
+                <Button startIcon={<ArrowBack />} onClick={() => navigate('/payments')} sx={{ mb: 2 }}>
+                    Back to Payments
+                </Button>
+                <Alert severity="error">Payment not found or failed to load.</Alert>
+            </Box>
+        );
+    }
+
+    // ── Generate payment link ─────────────────────────────────
+    const paymentLink = `http://localhost:4003/checkout/${payment.paymentReference || id}`;
+
+    const copyToClipboard = () => {
+        navigator.clipboard.writeText(paymentLink);
+        toast.success('Payment link copied!');
+    };
 
     // ── Main render ───────────────────────────────────────────
     return (
@@ -113,7 +147,7 @@ const PaymentDetails = () => {
                         Payment Details
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                        {payment.transactionReference}
+                        {payment.transactionReference || payment.paymentReference}
                     </Typography>
                 </Box>
                 <Box display="flex" gap={2} alignItems="center">
@@ -140,25 +174,40 @@ const PaymentDetails = () => {
 
                 {/* ── Amount Card ── */}
                 <Grid item xs={12} md={4}>
-                    <Card elevation={0} sx={{
-                        border: '1px solid #e0e0e0',
-                        borderRadius: 3,
-                        bgcolor: payment.status === 'COMPLETED' ? '#f0fdf4' : '#fff',
-                        textAlign: 'center',
-                        py: 3,
-                    }}>
-                        <Typography variant="h3" fontWeight="bold" color={
-                            payment.status === 'COMPLETED' ? '#16a34a' :
-                                payment.status === 'FAILED'    ? '#dc2626' :
-                                    payment.status === 'REFUNDED'  ? '#2563eb' : '#d97706'
-                        }>
-                            {payment.currency} {Number(payment.amount).toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                        })}
+                    <Card
+                        elevation={0}
+                        sx={{
+                            border: '1px solid #e0e0e0',
+                            borderRadius: 3,
+                            bgcolor:
+                                payment.status === 'COMPLETED'
+                                    ? '#f0fdf4'
+                                    : '#fff',
+                            textAlign: 'center',
+                            py: 3,
+                        }}
+                    >
+                        <Typography
+                            variant="h3"
+                            fontWeight="bold"
+                            color={
+                                payment.status === 'COMPLETED'
+                                    ? '#16a34a'
+                                    : payment.status === 'FAILED'
+                                        ? '#dc2626'
+                                        : payment.status === 'REFUNDED'
+                                            ? '#2563eb'
+                                            : '#d97706'
+                            }
+                        >
+                            {payment.currency}{' '}
+                            {Number(payment.amount).toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                            })}
                         </Typography>
                         <Typography variant="body2" color="text.secondary" mt={1}>
-                            {payment.paymentMethod?.replace('_', ' ')}
+                            {payment.channel?.replace('_', ' ')} Payment
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                             {new Date(payment.createdAt).toLocaleString()}
@@ -176,8 +225,8 @@ const PaymentDetails = () => {
                             <Divider sx={{ mb: 1 }} />
                             <InfoRow
                                 icon={<Tag fontSize="small" />}
-                                label="Transaction Reference"
-                                value={payment.transactionReference}
+                                label="Payment Reference"
+                                value={payment.paymentReference}
                             />
                             <InfoRow
                                 icon={<Receipt fontSize="small" />}
@@ -187,7 +236,7 @@ const PaymentDetails = () => {
                             <InfoRow
                                 icon={<CreditCard fontSize="small" />}
                                 label="Payment Method"
-                                value={payment.paymentMethod?.replace('_', ' ')}
+                                value={payment.channel?.replace('_', ' ') || payment.paymentMethod?.replace('_', ' ')}
                             />
                             <InfoRow
                                 icon={<CalendarToday fontSize="small" />}
@@ -216,14 +265,56 @@ const PaymentDetails = () => {
                                 label="Email"
                                 value={payment.customerEmail}
                             />
-                            <InfoRow
-                                icon={<Tag fontSize="small" />}
-                                label="Customer ID"
-                                value={payment.customerId}
-                            />
                         </CardContent>
                     </Card>
                 </Grid>
+
+                {/* ── Payment Link (PENDING ONLY) ── */}
+                {payment.status === 'PENDING' && (
+                    <Grid item xs={12}>
+                        <Card elevation={0} sx={{ border: '2px solid #fbbf24', borderRadius: 3, bgcolor: '#fffbeb' }}>
+                            <CardContent sx={{ p: 3 }}>
+                                <Box display="flex" alignItems="center" gap={1} mb={2}>
+                                    <LinkIcon sx={{ color: '#f59e0b' }} />
+                                    <Typography variant="subtitle2" fontWeight="bold" color="#d97706">
+                                        PAYMENT LINK
+                                    </Typography>
+                                </Box>
+                                <Typography variant="body2" color="text.secondary" mb={2}>
+                                    Share this link with the customer to complete payment
+                                </Typography>
+                                <Box
+                                    display="flex"
+                                    alignItems="center"
+                                    gap={1}
+                                    sx={{
+                                        bgcolor: 'white',
+                                        p: 2,
+                                        borderRadius: 2,
+                                        border: '1px solid #e5e7eb',
+                                        fontFamily: 'monospace',
+                                        fontSize: 12,
+                                    }}
+                                >
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            fontFamily: 'monospace',
+                                            flex: 1,
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                        }}
+                                    >
+                                        {paymentLink}
+                                    </Typography>
+                                    <IconButton size="small" onClick={copyToClipboard} title="Copy link">
+                                        <ContentCopy fontSize="small" />
+                                    </IconButton>
+                                </Box>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+                )}
 
                 {/* ── Description ── */}
                 {payment.description && (
@@ -243,17 +334,15 @@ const PaymentDetails = () => {
             </Grid>
 
             {/* ── Refund Dialog ── */}
-            <Dialog
-                open={refundOpen}
-                onClose={() => setRefundOpen(false)}
-                maxWidth="sm"
-                fullWidth
-            >
+            <Dialog open={refundOpen} onClose={() => setRefundOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>Process Refund</DialogTitle>
                 <DialogContent>
                     <Typography variant="body2" color="text.secondary" mb={2}>
                         You are about to refund{' '}
-                        <strong>{payment.currency} {Number(payment.amount).toLocaleString()}</strong>{' '}
+                        <strong>
+                            {payment.currency}{' '}
+                            {Number(payment.amount).toLocaleString()}
+                        </strong>{' '}
                         to <strong>{payment.customerName}</strong>.
                     </Typography>
                     <TextField
@@ -267,10 +356,7 @@ const PaymentDetails = () => {
                     />
                 </DialogContent>
                 <DialogActions sx={{ p: 2, gap: 1 }}>
-                    <Button
-                        onClick={() => setRefundOpen(false)}
-                        disabled={refundMutation.isPending}
-                    >
+                    <Button onClick={() => setRefundOpen(false)} disabled={refundMutation.isPending}>
                         Cancel
                     </Button>
                     <Button
@@ -279,10 +365,11 @@ const PaymentDetails = () => {
                         onClick={() => refundMutation.mutate()}
                         disabled={refundMutation.isPending}
                     >
-                        {refundMutation.isPending
-                            ? <CircularProgress size={20} color="inherit" />
-                            : 'Confirm Refund'
-                        }
+                        {refundMutation.isPending ? (
+                            <CircularProgress size={20} color="inherit" />
+                        ) : (
+                            'Confirm Refund'
+                        )}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -292,26 +379,3 @@ const PaymentDetails = () => {
 };
 
 export default PaymentDetails;
-
-
-// =====================================================
-// UPDATE src/routes/AppRoutes.tsx
-// Add PaymentDetail route
-// =====================================================
-
-// Add this import at the top:
-// import PaymentDetail from '../pages/payments/PaymentDetail';
-
-// Add this route inside the protected Route:
-// <Route path="payments/:id" element={<PaymentDetail />} />
-
-// Full updated protected routes:
-/*
-<Route path="/" element={<PrivateRoute><MainLayout /></PrivateRoute>}>
-    <Route index                  element={<Navigate to="/dashboard" replace />} />
-    <Route path="dashboard"       element={<Dashboard />} />
-    <Route path="payments"        element={<PaymentList />} />
-    <Route path="payments/new"    element={<CreatePayment />} />
-    <Route path="payments/:id"    element={<PaymentDetail />} />   ← ADD THIS
-</Route>
-*/

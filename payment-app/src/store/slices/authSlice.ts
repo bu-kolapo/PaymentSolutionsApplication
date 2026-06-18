@@ -1,8 +1,3 @@
-// =====================================================
-// src/store/slices/authSlice.ts
-// COMPLETE VERSION WITH TOKEN EXPIRY CHECK
-// =====================================================
-
 import { createSlice } from '@reduxjs/toolkit'
 import type { PayloadAction } from '@reduxjs/toolkit'
 
@@ -21,21 +16,18 @@ interface AuthState {
     token: string | null;
 }
 
-// ✅ NEW: Helper function to check if JWT token is expired
+// Helper: Check if JWT is expired
 const isTokenExpired = (token: string): boolean => {
     try {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        const exp = payload.exp * 1000; // Convert to milliseconds
+        const exp = payload.exp * 1000;
         return Date.now() >= exp;
-    } catch (error) {
-        console.error('Failed to decode token:', error);
-        return true; // If can't decode, treat as expired
+    } catch {
+        return true;
     }
 };
 
-// ✅ UPDATED: Get initial state with token expiry validation
-// authSlice.ts - CHANGE THIS PART:
-
+// Initialize state from localStorage with validation
 const getInitialState = (): AuthState => {
     try {
         const token = localStorage.getItem('access_token');
@@ -45,41 +37,50 @@ const getInitialState = (): AuthState => {
             return { isAuthenticated: false, user: null, token: null };
         }
 
-        // Check if token is expired
+        // Check expiry
         if (isTokenExpired(token)) {
-            console.warn('⏰ Token expired, clearing localStorage');
-            localStorage.clear();
+            console.warn('⏰ Token expired');
             return { isAuthenticated: false, user: null, token: null };
         }
 
         const user = JSON.parse(userStr);
 
-        // ✅ UPDATED: Make merchantId optional OR use id as fallback
-        if (user?.id && user?.email) {
-            // If no merchantId, use id as merchantId (for testing)
-            if (!user.merchantId) {
-                user.merchantId = user.id;
-                localStorage.setItem('user', JSON.stringify(user));
-            }
+        // Check if user has ANY valid data
+        const hasValidData = user && (user.id || user.email);
 
-            console.log('✅ Valid auth found:', user.email);
-            return { isAuthenticated: true, user, token };
-        } else {
-            console.warn('⚠️ Invalid user data, clearing');
-            localStorage.clear();
+        if (!hasValidData) {
+            console.warn('⚠️ Invalid user data');
             return { isAuthenticated: false, user: null, token: null };
         }
+
+        // If merchantId is missing, decode from token
+        if (!user.merchantId && token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                user.merchantId = payload.merchantId || payload.userId || user.id;
+                user.id = user.id || payload.userId;
+                user.email = user.email || payload.sub;
+                user.role = user.role || payload.role?.replace('ROLE_', '');
+
+                console.log('✅ Recovered user from token');
+                localStorage.setItem('user', JSON.stringify(user));
+            } catch (error) {
+                console.error('Token decode failed:', error);
+            }
+        }
+
+        console.log('✅ Valid auth:', user.email);
+        return { isAuthenticated: true, user, token };
+
     } catch (error) {
-        console.error('Error initializing auth state:', error);
-        localStorage.clear();
+        console.error('Auth init error:', error);
         return { isAuthenticated: false, user: null, token: null };
     }
 };
 
-// ✅ FIXED: Use getInitialState() function instead of inline object
 const authSlice = createSlice({
     name: 'auth',
-    initialState: getInitialState(), // ← Call the function here
+    initialState: getInitialState(),
     reducers: {
         setCredentials: (state, action: PayloadAction<{ user: User; accessToken: string }>) => {
             state.isAuthenticated = true;
@@ -99,7 +100,7 @@ const authSlice = createSlice({
             state.isAuthenticated = false;
             state.user = null;
             state.token = null;
-            localStorage.clear(); // ✅ Use clear() instead of removeItem
+            localStorage.clear();
         },
     },
 });
@@ -107,17 +108,9 @@ const authSlice = createSlice({
 export const { setCredentials, loginSuccess, logout } = authSlice.actions;
 export default authSlice.reducer;
 
-// ✅ NEW: Export thunk to manually check token expiry
 export const checkTokenExpiry = () => (dispatch: any) => {
     const token = localStorage.getItem('access_token');
-
-    if (!token) {
-        dispatch(logout());
-        return;
-    }
-
-    if (isTokenExpired(token)) {
-        console.log('⏰ Token expired during check, logging out');
+    if (!token || isTokenExpired(token)) {
         dispatch(logout());
     }
 };

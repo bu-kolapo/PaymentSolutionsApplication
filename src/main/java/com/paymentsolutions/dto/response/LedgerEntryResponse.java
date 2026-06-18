@@ -22,6 +22,7 @@ public class LedgerEntryResponse {
     private UUID accountId;
     private String accountNumber;
     private String entryType;
+    private String reference;
     private BigDecimal amount;
     private String currency;
     private BigDecimal balanceAfter;

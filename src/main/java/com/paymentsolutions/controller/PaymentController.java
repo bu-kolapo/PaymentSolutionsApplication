@@ -128,4 +128,16 @@ public class PaymentController {
 
         return ResponseEntity.ok(payments);
     }
+
+    @GetMapping("/{paymentId}")
+    public ResponseEntity<PaymentResponse> getPaymentById(
+            @PathVariable UUID paymentId,
+            @RequestHeader("X-Merchant-Id") UUID merchantId
+    ) {
+        log.info("🔍 Fetching payment {}", paymentId);
+
+        PaymentResponse response = paymentRequestService.getPaymentById(paymentId, merchantId);
+
+        return ResponseEntity.ok(response);
+    }
 }

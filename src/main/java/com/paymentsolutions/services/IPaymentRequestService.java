@@ -22,4 +22,5 @@ public interface IPaymentRequestService {
      * Get paginated payment requests for a merchant
      */
     Page<PaymentResponse> getPayments(UUID merchantId, String status, Pageable pageable);
+    PaymentResponse getPaymentById(UUID paymentId, UUID merchantId);
 }

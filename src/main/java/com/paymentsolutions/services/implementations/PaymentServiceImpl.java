@@ -149,6 +149,20 @@ public class PaymentServiceImpl implements IPaymentRequestService {
         return payments.map(this::mapToResponse);
     }
 
+    @Override
+    public PaymentResponse getPaymentById(UUID paymentId, UUID merchantId) {
+
+        var payment = paymentRepository
+                .findByIdAndMerchantId(paymentId, merchantId)
+                .orElseThrow(() -> new RuntimeException("Payment not found"));
+        // 🔐 Security check (VERY IMPORTANT)
+        if (!payment.getMerchantId().equals(merchantId)) {
+            throw new RuntimeException("Unauthorized access to payment");
+        }
+
+        return mapToResponse(payment);
+    }
+
     private String generateReference(String prefix) {
         return prefix + "-" + System.currentTimeMillis() + "-"
                 + UUID.randomUUID().toString().substring(0, 8).toUpperCase();

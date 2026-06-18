@@ -10,12 +10,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -26,12 +28,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserRepository userRepository;
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+    protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        boolean shouldSkip = path.startsWith("/api/v1/auth/");
+
+        boolean shouldSkip =
+                path.startsWith("/api/v1/auth/") ||
+                        path.startsWith("/checkout/") ||
+                        path.equals("/") ||
+                        path.equals("/index.html") ||
+                        path.startsWith("/error") ||
+                        path.startsWith("/favicon.ico") ||
+                        path.matches(".*\\.(js|css|png|jpg|jpeg|gif|svg)$");
 
         if (shouldSkip) {
-            log.info("⏭️ Skipping JWT filter for: {} {}", request.getMethod(), path);
+            log.debug("⏭️ Skipping JWT filter for: {} {}", request.getMethod(), path);
         }
 
         return shouldSkip;
@@ -49,26 +59,43 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.debug("⚠️ No Bearer token found");
             filterChain.doFilter(request, response);
             return;
         }
 
         try {
-            final String jwt = authHeader.substring(7);
-            final String userEmail = jwtTokenProvider.extractUsername(jwt);
+            String jwt = authHeader.substring(7);
+            String userEmail = jwtTokenProvider.extractUsername(jwt);
 
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
                 User user = userRepository.findByEmail(userEmail).orElse(null);
 
                 if (user != null && jwtTokenProvider.isTokenValid(jwt, user)) {
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            user, null, user.getAuthorities());
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                    // ✅ FIX: always assign explicit role (prevents 403 issues)
+                    List<SimpleGrantedAuthority> authorities =
+                            List.of(new SimpleGrantedAuthority("ROLE_USER"));
+
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    user,
+                                    null,
+                                    authorities
+                            );
+
+                    authToken.setDetails(
+                            new WebAuthenticationDetailsSource().buildDetails(request)
+                    );
+
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+
                     log.debug("✅ JWT authentication successful for: {}", userEmail);
+                } else {
+                    log.debug("⚠️ Invalid JWT or user not found for: {}", userEmail);
                 }
             }
+
         } catch (Exception e) {
             log.error("❌ JWT authentication error: {}", e.getMessage());
         }
@@ -76,4 +103,3 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 }
-

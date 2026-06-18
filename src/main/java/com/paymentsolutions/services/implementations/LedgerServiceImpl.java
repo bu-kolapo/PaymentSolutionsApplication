@@ -73,17 +73,22 @@ public class LedgerServiceImpl implements ILedgerService {
      */
     @Override
     @Transactional
-    public void recordSettlement(UUID paymentId, UUID merchantAccountId, BigDecimal amount, String currency) {
-        log.info("💰 Recording settlement: {} {} to account {}", amount, currency, merchantAccountId);
+    public void recordSettlement(UUID paymentId, UUID transactionId, UUID accountId, BigDecimal amount, String currency) {
 
-        Account merchantAccount = accountRepository.findById(merchantAccountId)
-                .orElseThrow(() -> new PaymentException("Merchant account not found"));
+        log.info("💰 Recording settlement: {} {} to account {}", amount, currency, accountId);
 
-        BigDecimal newBalance = merchantAccount.getBalance().add(amount);
+        // ✅ STEP 1: Load account
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new PaymentException("Account not found"));
 
+        // ✅ STEP 2: Calculate new balance
+        BigDecimal newBalance = account.getBalance().add(amount);
+
+        // ✅ STEP 3: Create ledger entry (THIS is your fix)
         LedgerEntry entry = LedgerEntry.builder()
                 .paymentId(paymentId)
-                .accountId(merchantAccountId)
+                .transactionId(transactionId) // ✅ CRITICAL FIX
+                .accountId(accountId)
                 .entryType("CREDIT")
                 .amount(amount)
                 .currency(currency)
@@ -93,7 +98,9 @@ public class LedgerServiceImpl implements ILedgerService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
+        // ✅ STEP 4: Save
         ledgerEntryRepository.save(entry);
+
         log.info("✅ Settlement recorded");
     }
 
@@ -122,6 +129,31 @@ public class LedgerServiceImpl implements ILedgerService {
                 .status(account.getStatus())
                 .createdAt(account.getCreatedAt())
                 .build();
+    }
+
+    private LedgerEntryResponse mapToLedgerEntryResponse(LedgerEntry entry) {
+        return LedgerEntryResponse.builder()
+                .id(entry.getId())
+                .amount(entry.getAmount())
+                .currency(entry.getCurrency())
+                .entryType(entry.getEntryType())
+                .reference(entry.getReference())
+                .description(entry.getDescription())
+                .balanceAfter(entry.getBalanceAfter())
+                .createdAt(entry.getCreatedAt())
+                .build();
+    }
+
+    @Override
+    public Page<LedgerEntryResponse> getLedgerEntries(
+            UUID accountId,
+            Pageable pageable
+    ) {
+        log.info("Fetching ledger entries for account: {}", accountId);
+
+        return ledgerEntryRepository
+                .findByAccountId(accountId, pageable)
+                .map(this::mapToLedgerEntryResponse);
     }
 }
 

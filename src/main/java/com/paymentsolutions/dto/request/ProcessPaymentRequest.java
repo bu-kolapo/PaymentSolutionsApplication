@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -22,6 +24,7 @@ public class ProcessPaymentRequest {
     private String cardExpiry;
     private String cardCvv;
     private String cardholderName;
+    private UUID customerId;
 
     // Bank transfer details
     private String bankCode;

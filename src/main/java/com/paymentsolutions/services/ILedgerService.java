@@ -27,5 +27,6 @@ public interface ILedgerService {
      * Record settlement to merchant account
      * Called when customer payment succeeds
      */
-    void recordSettlement(UUID paymentId, UUID merchantAccountId, BigDecimal amount, String currency);
+    public void recordSettlement(UUID paymentId, UUID transactionId, UUID accountId, BigDecimal amount, String currency);
+    Page<LedgerEntryResponse> getLedgerEntries(UUID accountId, Pageable pageable);
 }

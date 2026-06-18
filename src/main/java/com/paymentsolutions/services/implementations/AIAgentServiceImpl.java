@@ -40,8 +40,9 @@ public class AIAgentServiceImpl implements AIAgentService {
     private static final String CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
     // =====================================================
-    // 1. processQuery — Chat with AI assistant
+    // 1. processQuery — Chat with AI assistant Chat with AI (general Q&A about payments)
     // =====================================================
+
     @Override
     public AIResponse processQuery(AIQueryRequest request, UUID merchantId) {
         log.info("Processing AI query for merchant: {}", merchantId);
@@ -68,7 +69,7 @@ public class AIAgentServiceImpl implements AIAgentService {
     }
 
     // =====================================================
-    // 2. generateInsights — AI-generated data insights
+    // 2. generateInsights — AI-generated data insights,AI analytics (performance over N days)
     // =====================================================
     @Override
     public AIResponse generateInsights(UUID merchantId, int period) {
@@ -132,7 +133,7 @@ public class AIAgentServiceImpl implements AIAgentService {
     }
 
     // =====================================================
-    // 3. getRecommendations — Personalized recommendations
+    // 3. getRecommendations — Personalized recommendations, 5 actionable recommendations
     // =====================================================
     @Override
     public List<String> getRecommendations(UUID merchantId) {
@@ -172,7 +173,7 @@ public class AIAgentServiceImpl implements AIAgentService {
     }
 
     // =====================================================
-    // 4. analyzePatterns — Detect transaction patterns
+    // 4. analyzePatterns — Detect transaction ,patterns Detect transaction trends (7-day vs 30-day)
     // =====================================================
     @Override
     public AIResponse analyzePatterns(UUID merchantId) {

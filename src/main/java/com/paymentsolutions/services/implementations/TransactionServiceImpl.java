@@ -33,6 +33,16 @@ public class TransactionServiceImpl implements ITransactionService {
         return transactionRepository.findByMerchantIdOrderByCreatedAtDesc(merchantId, pageable)
                 .map(this::mapToResponse);
     }
+    @Override
+    public TransactionResponse getTransactionById(UUID id) {
+        log.info("Fetching transaction: {}", id);
+
+        Transaction tx = transactionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Transaction not found"));
+
+        return mapToResponse(tx);
+    }
+
 
     @Override
     public TransactionResponse getTransaction(UUID transactionId, UUID merchantId) throws  ResourceNotFoundException{

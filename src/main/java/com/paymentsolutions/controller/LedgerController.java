@@ -58,6 +58,17 @@ public class LedgerController {
         AccountResponse account = ledgerService.getAccount(accountId);
         return ResponseEntity.ok(account);
     }
+
+
+    @GetMapping("/account/{accountId}/entries")
+    public ResponseEntity<Page<LedgerEntryResponse>> getLedgerEntries(
+            @PathVariable UUID accountId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return ResponseEntity.ok(ledgerService.getLedgerEntries(accountId, pageable));
+    }
 }
 
 

@@ -21,6 +21,8 @@ import java.util.Map;
 public class AIResponse {
 
     private String message;
+    private String error;
+    private boolean success;
 
     private String conversationId;
 

@@ -64,6 +64,7 @@ public class Transaction {
 
     @Column(name = "currency", nullable = false, length = 3)
     private String currency;
+     private  String  referenceId;
 
     @Column(name = "payment_method", length = 50)
     private String paymentMethod;

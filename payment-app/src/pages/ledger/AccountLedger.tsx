@@ -1,52 +1,188 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
     Box, Card, CardContent, CircularProgress, Alert,
     Typography, Table, TableBody, TableCell, TableContainer,
-    TableHead, TableRow, TablePagination, Chip, Grid,
+    TableHead, TableRow, TablePagination, Chip, Grid, Button,
 } from '@mui/material';
-import { AccountBalance, TrendingUp, TrendingDown } from '@mui/icons-material';
+import { AccountBalance, TrendingUp, TrendingDown, Refresh } from '@mui/icons-material';
 import axiosInstance from '../../api/axios.config';
 
-const AccountLedger = () => {
-    const [page, setPage]               = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+interface LedgerEntry {
+    id: string;
+    amount: number;
+    entryType: string;
+    currency: string;
+    description: string;
+    entryReference: string;
+    balanceAfter: number;
+    createdAt: string;
+}
 
-    // Fetch merchant account
+interface LedgerResponse {
+    content: LedgerEntry[];
+    totalElements: number;
+    totalPages: number;
+}
+
+interface SettlementAccount {
+    id: string;
+    accountNumber: string;
+    balance: number;
+    currency: string;
+}
+
+const AccountLedger = () => {
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
     const [merchantId, setMerchantId] = useState<string>('');
-        useEffect(() => {
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
+    const [error, setError] = useState<string>('');
+
+    // Get merchant ID from logged-in user
+    useEffect(() => {
+        try {
+            const userStr = localStorage.getItem('user');
+            if (!userStr) {
+                setError('User data not found. Please login again.');
+                return;
+            }
+
             const user = JSON.parse(userStr);
-            setMerchantId(user.merchantId || user.id);
+            const id = user?.merchantId || user?.id;
+
+            if (!id) {
+                setError('Merchant ID not found.');
+                return;
+            }
+
+            console.log('✅ Merchant ID found:', id);
+            setMerchantId(id);
+        } catch (err) {
+            console.error('❌ Error parsing user:', err);
+            setError('Failed to load user data.');
         }
     }, []);
 
-    const { data: account } = useQuery({
+    // Fetch merchant account
+    const {
+        data: account,
+        isLoading: accountLoading,
+        error: accountError,
+    } = useQuery({
         queryKey: ['merchantAccount', merchantId],
         queryFn: async () => {
-            const res = await axiosInstance.post('/api/v1/ledger/account/merchant', null, {
-                params: { merchantId, currency: 'NGN' }
-            });
-            return res.data;
+            if (!merchantId) {
+                throw new Error('Merchant ID is empty');
+            }
+
+            console.log('🏦 Fetching merchant account for:', merchantId);
+
+            const res = await axiosInstance.post(
+                '/api/v1/ledger/account/merchant',
+                {},
+                {
+                    params: { merchantId, currency: 'NGN' },
+                    headers: {
+                        'X-Merchant-Id': merchantId,
+                    },
+                }
+            );
+
+            console.log('✅ Account loaded:', res.data);
+            return res.data as SettlementAccount;
         },
         enabled: !!merchantId,
+        retry: 2,
     });
-
 
     // Fetch ledger entries
-    const { data: ledger, isLoading, isError } = useQuery({
+    const {
+        data: ledger,
+        isLoading: entriesLoading,
+        isError: entriesError,
+        error: entriesQueryError,
+        refetch: refetchEntries,
+    } = useQuery({
         queryKey: ['ledger', account?.id, page, rowsPerPage],
         queryFn: async () => {
-            const res = await axiosInstance.get(
-                `/api/v1/ledger/account/${account.id}/entries?page=${page}&size=${rowsPerPage}`
-            );
-            return res.data;
+            if (!account?.id) {
+                throw new Error('Account ID not available');
+            }
+
+            if (!merchantId) {
+                throw new Error('Merchant ID not available');
+            }
+
+            // ✅ CORRECT ENDPOINT
+            const endpoint = `/api/v1/ledger/account/${account.id}/entries`;
+
+            console.log('📜 Fetching ledger entries from:', endpoint);
+            console.log('   Parameters:', { page, size: rowsPerPage });
+
+            try {
+                const res = await axiosInstance.get(endpoint, {
+                    params: {
+                        page,
+                        size: rowsPerPage,
+                    },
+                    headers: {
+                        'X-Merchant-Id': merchantId,
+                    },
+                });
+
+                console.log('✅ Ledger entries loaded:', res.data);
+                return res.data as LedgerResponse;
+            } catch (err: any) {
+                console.error('❌ Error fetching entries:', err);
+                console.error('   Endpoint:', endpoint);
+                console.error('   Status:', err.response?.status);
+                console.error('   Error:', err.response?.data);
+                throw err;
+            }
         },
-        enabled: !!account?.id,
+        enabled: !!account?.id && !!merchantId,
+        retry: 2,
     });
 
-    if (!account) return <CircularProgress />;
+    // ✅ INITIAL ERROR STATE
+    if (error) {
+        return (
+            <Box>
+                <Typography variant="h5" fontWeight="bold" mb={3}>
+                    Account Ledger
+                </Typography>
+                <Alert severity="error">{error}</Alert>
+            </Box>
+        );
+    }
+
+    // ✅ LOADING ACCOUNT
+    if (accountLoading) {
+        return (
+            <Box>
+                <Typography variant="h5" fontWeight="bold" mb={3}>
+                    Account Ledger
+                </Typography>
+                <Box display="flex" justifyContent="center" pt={4}>
+                    <CircularProgress />
+                </Box>
+            </Box>
+        );
+    }
+
+    // ✅ ACCOUNT FETCH ERROR
+    if (accountError || !account) {
+        return (
+            <Box>
+                <Typography variant="h5" fontWeight="bold" mb={3}>
+                    Account Ledger
+                </Typography>
+                <Alert severity="error">
+                    Failed to load settlement account. Please try again.
+                </Alert>
+            </Box>
+        );
+    }
 
     return (
         <Box>
@@ -64,10 +200,11 @@ const AccountLedger = () => {
                                 <Typography variant="subtitle2">Settlement Account</Typography>
                             </Box>
                             <Typography variant="h4" fontWeight="bold">
-                                {account.currency} {Number(account.balance).toLocaleString('en-US', {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                            })}
+                                {account.currency}{' '}
+                                {Number(account.balance).toLocaleString('en-NG', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                })}
                             </Typography>
                             <Typography variant="caption" sx={{ opacity: 0.8 }}>
                                 Account: {account.accountNumber}
@@ -80,10 +217,44 @@ const AccountLedger = () => {
             {/* Ledger Table */}
             <Card elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3 }}>
                 <CardContent>
-                    <Typography variant="h6" mb={2}>Transaction History</Typography>
-                    {isLoading && <CircularProgress />}
-                    {isError && <Alert severity="error">Failed to load ledger</Alert>}
-                    {ledger && (
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                        <Typography variant="h6">
+                            Transaction History
+                        </Typography>
+                        {entriesError && (
+                            <Button
+                                size="small"
+                                startIcon={<Refresh />}
+                                onClick={() => refetchEntries()}
+                            >
+                                Retry
+                            </Button>
+                        )}
+                    </Box>
+
+                    {/* LOADING STATE */}
+                    {entriesLoading && (
+                        <Box display="flex" justifyContent="center" py={4}>
+                            <CircularProgress />
+                        </Box>
+                    )}
+
+                    {/* ERROR STATE */}
+                    {entriesError && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            <Typography variant="body2" fontWeight="bold" mb={1}>
+                                Failed to load transaction history
+                            </Typography>
+                            <Typography variant="caption">
+                                {entriesQueryError instanceof Error
+                                    ? entriesQueryError.message
+                                    : 'Please check your connection.'}
+                            </Typography>
+                        </Alert>
+                    )}
+
+                    {/* TABLE */}
+                    {ledger && !entriesError && (
                         <>
                             <TableContainer>
                                 <Table>
@@ -98,39 +269,65 @@ const AccountLedger = () => {
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {ledger.content.length === 0 && (
+                                        {(!ledger.content || ledger.content.length === 0) && (
                                             <TableRow>
                                                 <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
-                                                    <Typography color="text.secondary">No transactions yet</Typography>
+                                                    <Typography color="text.secondary">
+                                                        No transactions yet
+                                                    </Typography>
                                                 </TableCell>
                                             </TableRow>
                                         )}
-                                        {ledger.content.map((entry: any) => (
+                                        {ledger.content?.map((entry: LedgerEntry) => (
                                             <TableRow key={entry.id} hover>
-                                                <TableCell>
+                                                <TableCell sx={{ fontSize: 14 }}>
                                                     {new Date(entry.createdAt).toLocaleString()}
                                                 </TableCell>
                                                 <TableCell>
                                                     <Chip
-                                                        icon={entry.entryType === 'CREDIT' ? <TrendingUp /> : <TrendingDown />}
+                                                        icon={
+                                                            entry.entryType === 'CREDIT' ? (
+                                                                <TrendingUp />
+                                                            ) : (
+                                                                <TrendingDown />
+                                                            )
+                                                        }
                                                         label={entry.entryType}
-                                                        color={entry.entryType === 'CREDIT' ? 'success' : 'error'}
+                                                        color={
+                                                            entry.entryType === 'CREDIT'
+                                                                ? 'success'
+                                                                : 'error'
+                                                        }
                                                         size="small"
                                                     />
                                                 </TableCell>
                                                 <TableCell>
                                                     <Typography
                                                         fontWeight="bold"
-                                                        color={entry.entryType === 'CREDIT' ? 'success.main' : 'error.main'}
+                                                        color={
+                                                            entry.entryType === 'CREDIT'
+                                                                ? 'success.main'
+                                                                : 'error.main'
+                                                        }
                                                     >
                                                         {entry.entryType === 'CREDIT' ? '+' : '-'}
-                                                        {entry.currency} {Number(entry.amount).toFixed(2)}
+                                                        {entry.currency}{' '}
+                                                        {Number(entry.amount).toLocaleString('en-NG', {
+                                                            minimumFractionDigits: 2,
+                                                            maximumFractionDigits: 2,
+                                                        })}
                                                     </Typography>
                                                 </TableCell>
                                                 <TableCell>
-                                                    {entry.currency} {Number(entry.balanceAfter).toFixed(2)}
+                                                    {entry.currency}{' '}
+                                                    {Number(entry.balanceAfter).toLocaleString('en-NG', {
+                                                        minimumFractionDigits: 2,
+                                                        maximumFractionDigits: 2,
+                                                    })}
                                                 </TableCell>
-                                                <TableCell>{entry.description}</TableCell>
+                                                <TableCell sx={{ fontSize: 13 }}>
+                                                    {entry.description}
+                                                </TableCell>
                                                 <TableCell sx={{ fontFamily: 'monospace', fontSize: 11 }}>
                                                     {entry.entryReference}
                                                 </TableCell>
@@ -139,17 +336,20 @@ const AccountLedger = () => {
                                     </TableBody>
                                 </Table>
                             </TableContainer>
-                            <TablePagination
-                                component="div"
-                                count={ledger.totalElements || 0}
-                                page={page}
-                                rowsPerPage={rowsPerPage}
-                                onPageChange={(_, newPage) => setPage(newPage)}
-                                onRowsPerPageChange={(e) => {
-                                    setRowsPerPage(parseInt(e.target.value, 10));
-                                    setPage(0);
-                                }}
-                            />
+
+                            {ledger.content && ledger.content.length > 0 && (
+                                <TablePagination
+                                    component="div"
+                                    count={ledger.totalElements || 0}
+                                    page={page}
+                                    rowsPerPage={rowsPerPage}
+                                    onPageChange={(_, newPage) => setPage(newPage)}
+                                    onRowsPerPageChange={(e) => {
+                                        setRowsPerPage(parseInt(e.target.value, 10));
+                                        setPage(0);
+                                    }}
+                                />
+                            )}
                         </>
                     )}
                 </CardContent>

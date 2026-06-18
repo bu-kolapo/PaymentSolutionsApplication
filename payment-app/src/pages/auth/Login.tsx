@@ -1,19 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import {
-    Box,
-    Card,
-    CardContent,
-    TextField,
-    Button,
-    Typography,
-    Alert,
-    CircularProgress,
-    InputAdornment,
-    IconButton,
-} from '@mui/material';
+import {Box, Card, CardContent, TextField, Button, Typography, Alert, CircularProgress, InputAdornment, IconButton,} from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useAppDispatch } from '../../store/hooks';
+
 import { loginSuccess } from '../../store/slices/authSlice';
 import { authService } from '../../api/services/authService';
 
@@ -73,6 +63,7 @@ const Login = () => {
                 email: tokenData.email || response.email || email,
                 merchantId: tokenData.merchantId || response.merchantId,
                 role: tokenData.role || response.role,
+                // role: tokenData.role ,
                 firstName: response.firstName || '',
                 lastName: response.lastName || '',
             };

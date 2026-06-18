@@ -2,55 +2,159 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
     Box, Card, CardContent, Typography, CircularProgress,
-    Alert, Grid, Chip,
+    Alert, Grid, Chip, Button,
 } from '@mui/material';
-import { AccountBalance, TrendingUp } from '@mui/icons-material';
+import { AccountBalance, TrendingUp, Refresh } from '@mui/icons-material';
 import axiosInstance from '../../api/axios.config';
+
+interface SettlementAccount {
+    id: string;
+    accountNumber: string;
+    accountName: string;
+    ownerId: string;
+    ownerType: string;
+    currency: string;
+    balance: number;
+    availableBalance: number;
+    accountType: string;
+    createdAt: string;
+}
 
 const AccountSetup = () => {
     const [merchantId, setMerchantId] = useState<string>('');
+    const [error, setError] = useState<string>('');
 
     // Get merchant ID from logged-in user
     useEffect(() => {
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
+        try {
+            const userStr = localStorage.getItem('user');
+            if (!userStr) {
+                setError('User data not found. Please login again.');
+                return;
+            }
+
             const user = JSON.parse(userStr);
-            setMerchantId(user.merchantId || user.id);
+            const id = user?.merchantId || user?.id;
+
+            if (!id) {
+                setError('Merchant ID not found in user data.');
+                console.error('User object:', user);
+                return;
+            }
+
+            console.log('✅ Merchant ID found:', id);
+            setMerchantId(id);
+        } catch (err) {
+            console.error('❌ Error parsing user data:', err);
+            setError('Failed to load user data.');
         }
     }, []);
 
     // Fetch merchant settlement account
-    const { data: account, isLoading, isError } = useQuery({
+    const {
+        data: account,
+        isLoading,
+        isError,
+        error: queryError,
+        refetch,
+    } = useQuery({
         queryKey: ['merchantSettlementAccount', merchantId],
         queryFn: async () => {
-            const response = await axiosInstance.post(
-                '/api/v1/ledger/account/merchant',
-                null,
-                {
-                    params: {
-                        merchantId,
-                        currency: 'NGN',
-                    },
-                }
-            );
-            return response.data;
+            if (!merchantId) {
+                throw new Error('Merchant ID is empty');
+            }
+
+            console.log('🏦 Fetching settlement account for merchant:', merchantId);
+
+            try {
+                const response = await axiosInstance.post(
+                    '/api/v1/ledger/account/merchant',
+                    {},
+                    {
+                        params: {
+                            merchantId,
+                            currency: 'NGN',
+                        },
+                        headers: {
+                            'X-Merchant-Id': merchantId,
+                        },
+                    }
+                );
+
+                console.log('✅ Settlement account loaded successfully:', response.data);
+                return response.data as SettlementAccount;
+            } catch (err: any) {
+                console.error('❌ Error fetching account:', err);
+                console.error('Error response:', err.response?.data);
+                throw new Error(
+                    err.response?.data?.message ||
+                    'Failed to fetch settlement account'
+                );
+            }
         },
         enabled: !!merchantId,
+        retry: 2,
     });
 
-    if (isLoading) {
+    // ✅ INITIAL ERROR STATE (no merchantId)
+    if (error) {
         return (
-            <Box display="flex" justifyContent="center" pt={4}>
-                <CircularProgress />
+            <Box>
+                <Typography variant="h5" fontWeight="bold" mb={3}>
+                    Settlement Account
+                </Typography>
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                </Alert>
+                <Button
+                    variant="contained"
+                    onClick={() => window.location.reload()}
+                >
+                    Reload Page
+                </Button>
             </Box>
         );
     }
 
-    if (isError) {
+    // ✅ LOADING STATE
+    if (isLoading) {
         return (
-            <Alert severity="error">
-                Failed to load settlement account. Please try again.
-            </Alert>
+            <Box>
+                <Typography variant="h5" fontWeight="bold" mb={3}>
+                    Settlement Account
+                </Typography>
+                <Box display="flex" justifyContent="center" pt={6}>
+                    <CircularProgress />
+                </Box>
+            </Box>
+        );
+    }
+
+    // ✅ ERROR STATE (API error)
+    if (isError || !account) {
+        return (
+            <Box>
+                <Typography variant="h5" fontWeight="bold" mb={3}>
+                    Settlement Account
+                </Typography>
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    <Typography variant="body2" fontWeight="bold" mb={1}>
+                        Failed to load settlement account
+                    </Typography>
+                    <Typography variant="caption" display="block" mb={2}>
+                        {queryError instanceof Error
+                            ? queryError.message
+                            : 'Please check your connection and try again.'}
+                    </Typography>
+                </Alert>
+                <Button
+                    variant="contained"
+                    startIcon={<Refresh />}
+                    onClick={() => refetch()}
+                >
+                    Try Again
+                </Button>
+            </Box>
         );
     }
 
@@ -74,7 +178,7 @@ const AccountSetup = () => {
 
                             <Typography variant="h3" fontWeight="bold" mb={1}>
                                 {account.currency}{' '}
-                                {Number(account.balance).toLocaleString('en-US', {
+                                {Number(account.balance).toLocaleString('en-NG', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2,
                                 })}
@@ -86,7 +190,7 @@ const AccountSetup = () => {
 
                             <Box mt={2}>
                                 <Chip
-                                    label={account.status}
+                                    label="Active"
                                     color="success"
                                     size="small"
                                     sx={{ bgcolor: 'rgba(255,255,255,0.2)' }}
@@ -115,7 +219,9 @@ const AccountSetup = () => {
 
                             <Typography variant="h3" fontWeight="bold" color="success.main">
                                 {account.currency}{' '}
-                                {Number(account.availableBalance).toLocaleString('en-US', {
+                                {Number(
+                                    account.availableBalance || account.balance
+                                ).toLocaleString('en-NG', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2,
                                 })}
@@ -151,10 +257,15 @@ const AccountSetup = () => {
                                         variant="caption"
                                         color="text.secondary"
                                         display="block"
+                                        sx={{ mb: 0.5 }}
                                     >
                                         Account Number
                                     </Typography>
-                                    <Typography variant="body1" fontWeight="500">
+                                    <Typography
+                                        variant="body1"
+                                        fontWeight="500"
+                                        sx={{ fontFamily: 'monospace' }}
+                                    >
                                         {account.accountNumber}
                                     </Typography>
                                 </Grid>
@@ -164,6 +275,7 @@ const AccountSetup = () => {
                                         variant="caption"
                                         color="text.secondary"
                                         display="block"
+                                        sx={{ mb: 0.5 }}
                                     >
                                         Account Type
                                     </Typography>
@@ -177,6 +289,7 @@ const AccountSetup = () => {
                                         variant="caption"
                                         color="text.secondary"
                                         display="block"
+                                        sx={{ mb: 0.5 }}
                                     >
                                         Currency
                                     </Typography>
@@ -190,10 +303,43 @@ const AccountSetup = () => {
                                         variant="caption"
                                         color="text.secondary"
                                         display="block"
+                                        sx={{ mb: 0.5 }}
                                     >
-                                        Status
+                                        Account Name
                                     </Typography>
-                                    <Chip label={account.status} color="success" size="small" />
+                                    <Typography variant="body1" fontWeight="500">
+                                        {account.accountName}
+                                    </Typography>
+                                </Grid>
+
+                                <Grid item xs={12}>
+                                    <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        display="block"
+                                        sx={{ mb: 0.5 }}
+                                    >
+                                        Owner Type
+                                    </Typography>
+                                    <Chip
+                                        label={account.ownerType}
+                                        size="small"
+                                        variant="outlined"
+                                    />
+                                </Grid>
+
+                                <Grid item xs={12}>
+                                    <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        display="block"
+                                        sx={{ mb: 0.5 }}
+                                    >
+                                        Created
+                                    </Typography>
+                                    <Typography variant="body2">
+                                        {new Date(account.createdAt).toLocaleDateString()}
+                                    </Typography>
                                 </Grid>
                             </Grid>
                         </CardContent>

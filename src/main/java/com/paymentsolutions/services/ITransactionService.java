@@ -17,6 +17,9 @@ public interface ITransactionService {
      */
     Page<TransactionResponse> getTransactions(UUID merchantId, Pageable pageable);
 
+    TransactionResponse getTransactionById(UUID id);
+
+
     /**
      * Get a single transaction by ID
      */

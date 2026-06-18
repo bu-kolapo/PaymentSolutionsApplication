@@ -17,6 +17,7 @@ import java.util.UUID;
 public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, UUID> {
 
     // Get all entries for an account
+    Page<LedgerEntry> findByAccountId(UUID accountId, Pageable pageable);
     Page<LedgerEntry> findByAccountIdOrderByCreatedAtDesc(UUID accountId, Pageable pageable);
 
     // Get entries for a transaction (should be 2: debit + credit)

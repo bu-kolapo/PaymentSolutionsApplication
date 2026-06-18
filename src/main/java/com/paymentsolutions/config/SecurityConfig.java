@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -32,26 +33,55 @@ public class SecurityConfig {
         log.info("🔐 Configuring Security...");
 
         http
-                // Disable CSRF
+
+        // ✅ ADD THIS LINE
+            .cors(cors -> {})
+                // Disable CSRF (OK for stateless APIs)
                 .csrf(csrf -> csrf.disable())
 
-                // Configure authorization
-                .authorizeHttpRequests(auth -> {
-                    auth
-                            .requestMatchers("/api/v1/auth/**").permitAll()
-                            .anyRequest().authenticated();
-                    log.info("✅ Auth rules: /api/v1/auth/** = PERMIT ALL");
-                })
+                // Authorization rules
+                .authorizeHttpRequests(auth -> auth
+                        // ✅ Auth endpoints
+                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        // ✅ VERY IMPORTANT (your failing endpoint)
+                        .requestMatchers("/api/v1/payments/requests/**").permitAll()
+                        // ✅ Checkout payment (THIS FIXES YOUR 403)
+                        .requestMatchers("/api/v1/payments/*/pay").permitAll()
+                        .requestMatchers("/api/v1/payments/**").permitAll()
+                       .requestMatchers("/api/v1/transactions/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/transactions").permitAll()
+                        .requestMatchers("/api/v1/ledger/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/ledger/account/merchant").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/ledger/account/*/entries").permitAll()
+                        // ✅ Public checkout endpoint (from your React routes)
+                        .requestMatchers("/checkout/**").permitAll()
+                        .requestMatchers("/api/v1/ai/**").permitAll()
 
-                // Stateless session
+                        // ✅ Allow frontend entry + static resources
+                        .requestMatchers(
+                                "/",
+                                "/index.html",
+                                "/favicon.ico",
+                                "/error",
+                                "/**/*.js",
+                                "/**/*.css",
+                                "/**/*.png",
+                                "/**/*.jpg"
+                        ).permitAll()
+
+                        // ❗ Everything else must be authenticated
+                        .anyRequest().authenticated()
+                )
+
+                // Stateless session (JWT)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                // Add authentication provider
+                // Authentication provider
                 .authenticationProvider(authenticationProvider())
 
-                // Add JWT filter
+                // JWT filter
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         log.info("✅ Security configuration complete");
